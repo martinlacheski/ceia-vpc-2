@@ -1,6 +1,7 @@
 """Descarga los datasets públicos en data/raw/ si todavía no están.
 
-  - Toloka Water Meters (Kaggle): descarga anónima con kagglehub.
+  - Toloka Water Meters (Kaggle): en Kaggle se toma del input adjuntado al
+    notebook (/kaggle/input); fuera de Kaggle, descarga anónima con kagglehub.
   - water-meter-dataset v3 (Roboflow, formato YOLOv8): requiere la variable de
     entorno ROBOFLOW_API_KEY (en Colab se carga desde los "Secrets").
 
@@ -17,19 +18,35 @@ import shutil
 from pathlib import Path
 
 RAW = Path("data/raw")
+KAGGLE_INPUT = Path("/kaggle/input")
 TOLOKA_HANDLE = "tapakah68/yandextoloka-water-meters-dataset"
 ROBOFLOW_WORKSPACE = "water-meter-yfzw4"
 ROBOFLOW_PROJECT = "water-meter-dataset"
 ROBOFLOW_VERSION = 3
 
 
+def find_attached_toloka(root: Path) -> Path | None:
+    """Busca la carpeta de Toloka (data.csv junto a images/) dentro de los inputs de Kaggle."""
+    if not root.exists():
+        return None
+    for csv_path in sorted(root.rglob("data.csv")):
+        if (csv_path.parent / "images").is_dir():
+            return csv_path.parent
+    return None
+
+
 def download_toloka(dest: Path = RAW / "toloka") -> None:
     if (dest / "data.csv").exists():
         print(f"Toloka ya está en {dest}")
         return
-    import kagglehub
 
-    cache = Path(kagglehub.dataset_download(TOLOKA_HANDLE)) / "WaterMeters"
+    # En Kaggle, una ejecución en segundo plano no puede adjuntar datasets nuevos:
+    # hay que adjuntarlo desde la interfaz (Add Input) y se lo toma de /kaggle/input.
+    cache = find_attached_toloka(KAGGLE_INPUT)
+    if cache is None:
+        import kagglehub
+
+        cache = Path(kagglehub.dataset_download(TOLOKA_HANDLE)) / "WaterMeters"
     dest.mkdir(parents=True, exist_ok=True)
     shutil.copy2(cache / "data.csv", dest / "data.csv")
     # Se omiten los collages (~700 MB): no se usan en el pipeline.
