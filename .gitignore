@@ -1,0 +1,37 @@
+# Material de referencia de la materia (repositorio clonado aparte)
+materia/
+
+# Documentos de la cursada y correspondencia privada
+Pautas_Trabajo_Practico_Final.pdf
+devolucion.txt
+repositorio.txt
+
+# Fotos de campo originales: los nombres de archivo contienen datos de clientes. No subir nunca.
+toma_estado/
+
+# Datasets y datos derivados (se descargan con los scripts de data/)
+data/raw/
+data/interim/
+data/processed/
+*.zip
+
+# Salidas de entrenamiento y pesos de modelos
+runs/
+weights/
+*.pt
+*.pth
+*.onnx
+wandb/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.env
+.ipynb_checkpoints/
+
+# Editores y sistema operativo
+.vscode/
+.idea/
+.DS_Store
