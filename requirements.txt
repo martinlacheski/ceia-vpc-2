@@ -8,3 +8,7 @@ roboflow
 kaggle
 pillow
 pytest
+kagglehub
+pyyaml
+pandas
+matplotlib

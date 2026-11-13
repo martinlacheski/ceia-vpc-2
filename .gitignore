@@ -11,17 +11,21 @@ data/processed/
 *.zip
 
 # Salidas de entrenamiento y pesos de modelos
+# runs/: corridas completas de Ultralytics; weights/: modelos preentrenados descargados.
+# Los pesos finales sí se versionan en models/ y las métricas en experiments/.
 runs/
 weights/
 *.pt
 *.pth
 *.onnx
+!models/*.pt
 wandb/
 
 # Python
 __pycache__/
 *.py[cod]
 .venv/
+.venv-rocm/
 venv/
 .env
 .ipynb_checkpoints/
