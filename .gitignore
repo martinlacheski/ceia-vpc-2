@@ -1,11 +1,6 @@
 # Material de referencia de la materia (repositorio clonado aparte)
 materia/
 
-# Documentos de la cursada y correspondencia privada
-Pautas_Trabajo_Practico_Final.pdf
-devolucion.txt
-repositorio.txt
-
 # Fotos de campo originales: los nombres de archivo contienen datos de clientes. No subir nunca.
 toma_estado/
 
@@ -31,7 +26,18 @@ venv/
 .env
 .ipynb_checkpoints/
 
+# Herramientas y agentes de IA (configuración local de cada integrante)
+.atl/
+.claude/
+.codegraph/
+.engram/
+odd/
+CLAUDE.md
+AGENTS.md
+
 # Editores y sistema operativo
 .vscode/
 .idea/
 .DS_Store
+
+
