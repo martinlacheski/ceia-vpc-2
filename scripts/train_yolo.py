@@ -5,7 +5,7 @@ en Google Colab (GPU NVIDIA) o en CPU. Al terminar:
   - copia el mejor peso a models/<nombre>.pt (versionado en el repositorio);
   - copia métricas, curvas e hiperparámetros a experiments/<nombre>/.
 
-Uso:
+Uso (para retomar una corrida interrumpida: --task segment --name <nombre> --resume):
   python scripts/train_yolo.py --task segment --model yolov8n-seg.pt \
       --data data/processed/toloka_seg/data.yaml --name toloka_yolov8n_seg
 """
@@ -52,12 +52,27 @@ def train(task: str, model: str, data: str, name: str, epochs: int, imgsz: int,
     return Path(yolo.trainer.save_dir)
 
 
+def resume(task: str, name: str) -> Path:
+    """Retoma una corrida interrumpida desde su último punto de control (last.pt)."""
+    from ultralytics import YOLO
+
+    last = (Path("runs") / task / name / "weights" / "last.pt").resolve()
+    if not last.exists():
+        raise SystemExit(f"No hay punto de control para retomar en {last}")
+    yolo = YOLO(str(last))
+    # Ultralytics recupera datos, épocas e hiperparámetros guardados en last.pt.
+    yolo.train(resume=True)
+    return Path(yolo.trainer.save_dir)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--task", choices=["segment", "detect"], required=True)
-    parser.add_argument("--model", required=True, help="p. ej. yolov8n-seg.pt")
-    parser.add_argument("--data", required=True, help="ruta al data.yaml")
     parser.add_argument("--name", required=True, help="nombre de la corrida y del peso final")
+    parser.add_argument("--resume", action="store_true",
+                        help="retoma la corrida --name interrumpida (no requiere --model ni --data)")
+    parser.add_argument("--model", help="p. ej. yolov8n-seg.pt")
+    parser.add_argument("--data", help="ruta al data.yaml")
     parser.add_argument("--epochs", type=int, default=100)
     parser.add_argument("--imgsz", type=int, default=640)
     parser.add_argument("--batch", type=int, default=16)
@@ -65,8 +80,13 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     args = parser.parse_args()
 
-    run_dir = train(args.task, args.model, args.data, args.name, args.epochs,
-                    args.imgsz, args.batch, args.patience, args.seed)
+    if args.resume:
+        run_dir = resume(args.task, args.name)
+    else:
+        if not (args.model and args.data):
+            parser.error("--model y --data son obligatorios salvo con --resume")
+        run_dir = train(args.task, args.model, args.data, args.name, args.epochs,
+                        args.imgsz, args.batch, args.patience, args.seed)
     collect_artifacts(run_dir, args.name, Path("models"), Path("experiments"))
     print(f"Pesos: models/{args.name}.pt | métricas: experiments/{args.name}/")
 
