@@ -20,6 +20,7 @@ weights/
 *.onnx
 !models/*.pt
 wandb/
+*.cache
 
 # Python
 __pycache__/

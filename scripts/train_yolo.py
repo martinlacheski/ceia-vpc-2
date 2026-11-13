@@ -46,7 +46,8 @@ def train(task: str, model: str, data: str, name: str, epochs: int, imgsz: int,
     yolo.train(
         task=task, data=data, epochs=epochs, imgsz=imgsz, batch=batch,
         patience=patience, seed=seed, device=device,
-        project=str(Path("runs") / task), name=name, exist_ok=True,
+        # Ruta absoluta: con una relativa, Ultralytics la anida dentro de su runs_dir.
+        project=str((Path("runs") / task).resolve()), name=name, exist_ok=True,
     )
     return Path(yolo.trainer.save_dir)
 
