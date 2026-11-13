@@ -27,4 +27,8 @@ pip install -r requirements.txt
 
 ## Integrantes
 
-- Martín Lacheski
+- Lacheski, Martin
+- Lastra, Nicolas
+- Scheidl, Hernando
+- Vazquez, Diego
+
