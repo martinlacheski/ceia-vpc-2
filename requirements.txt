@@ -6,3 +6,5 @@ numpy
 easyocr
 roboflow
 kaggle
+pillow
+pytest
