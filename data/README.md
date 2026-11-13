@@ -6,7 +6,7 @@ Los datasets públicos no se versionan en el repositorio: se descargan en `data/
 |---|---|---|---|---|---|
 | [Water Meters Dataset (Toloka)](https://www.kaggle.com/datasets/tapakah68/yandextoloka-water-meters-dataset) | Etapa 1: segmentación del visor | Kaggle | 1.244 imágenes; polígono del visor y lectura en `data.csv`, máscaras y collages | CC BY-NC-ND 4.0 | `data/raw/toloka/` |
 | [water-meter-dataset (Roboflow)](https://universe.roboflow.com/water-meter-yfzw4/water-meter-dataset) | Etapa 2: detección de dígitos | v3 (exportada el 17/01/2024) | 8.978 imágenes sin augmentation; clases `0`–`9` y `border_water_meter_number` | CC BY 4.0 | `data/raw/roboflow_water_meter/` |
-| [Fotos de campo CEML (Misiones)](ceml/) | Conjunto de prueba en condiciones reales | — | 330 imágenes de 319 medidores; etiquetado propio (150–200 imágenes) | Uso académico | `data/ceml/` |
+| [Fotos de campo CEML (Misiones)](ceml/) | Conjunto de prueba en condiciones reales | — | 324 imágenes de 314 medidores; polígono del visor (auto-etiquetado con SAM 3 y revisión manual) | Uso académico | `data/ceml/` |
 
 ## Descarga
 

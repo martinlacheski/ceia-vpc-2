@@ -26,6 +26,17 @@ MONTH_RE = re.compile(r"^(\d{2})-(\d{4})$")
 ROUTE_RE = re.compile(r"RUTAS?\s*(\d+)", re.IGNORECASE)
 MAX_SIDE = 1600
 
+# Fotos descartadas: el auto-etiquetado (SAM 3) no detectó el visor.
+# Se filtran después de asignar los identificadores para no alterar los nombres del resto.
+EXCLUDED = {
+    "agua_2018-10_r80_m0045.jpg",
+    "agua_2018-10_r90_m0200.jpg",
+    "agua_2018-12_r80_m0033.jpg",
+    "agua_2018-12_r80_m0064.jpg",
+    "agua_2019-07_r90_m0274.jpg",
+    "agua_2019-09_r80_m0162.jpg",
+}
+
 
 def parse_photo(path: Path, src: Path) -> dict:
     """Extrae mes, ruta y cliente a partir de la ruta del archivo."""
@@ -71,6 +82,8 @@ def main() -> None:
             n += 1
             name = f"{base}_{n}.jpg"
         used_names.add(name)
+        if name in EXCLUDED:
+            continue
 
         # exif_transpose aplica la orientación antes de descartar el EXIF.
         with Image.open(r["path"]) as im:
@@ -92,7 +105,7 @@ def main() -> None:
         writer.writerow(["original", "file", "meter_id"])
         writer.writerows([str(row["path"].relative_to(args.src)), row["file"], row["meter_id"]] for row in rows)
 
-    print(f"{len(rows)} fotos anonimizadas, {len(customers)} medidores -> {images_dir}")
+    print(f"{len(rows)} fotos anonimizadas, {len({row['meter_id'] for row in rows})} medidores -> {images_dir}")
 
 
 if __name__ == "__main__":
