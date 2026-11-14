@@ -1,5 +1,6 @@
 """Tests de src/meter_reader/reading.py: armar la lectura a partir de las cajas de dígitos."""
 
+from dataclasses import replace
 import sys
 from pathlib import Path
 
@@ -55,3 +56,10 @@ def test_rolling_digits_of_normal_width_are_kept():
     # Un rodillo a mitad de giro ocupa el ancho completo: no se descarta por ancho.
     digits = row("0034") + [Digit(9, 0.45, 120, 0, 139, 40)]
     assert assemble_reading(digits).text == "00349"
+
+
+def test_formatted_puts_a_dot_where_red_digits_start():
+    reading = assemble_reading([Digit(v, 0.9, i * 10, 0, i * 10 + 8, 20) for i, v in enumerate([0, 1, 2, 7, 3, 4])])
+    assert reading.formatted == "012734"  # sin separación, igual que text
+    split = replace(reading, red_from=4)
+    assert split.formatted == "0127.34" and split.text == "012734"

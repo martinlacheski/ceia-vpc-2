@@ -30,7 +30,8 @@ class ReaderOutput:
 
 
 class MeterReader:
-    """Lector real. Si faltan los pesos de dígitos solo segmenta el visor (modo sin lectura)."""
+    """Lector real. Si faltan los pesos de dígitos solo segmenta el visor (modo sin lectura);
+    si falta el clasificador del modelo de medidor, la fracción se separa por el color."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -38,6 +39,7 @@ class MeterReader:
         self._loaded = False
         self._segment = None
         self._detect = None
+        self._classify = None
 
     @property
     def digits_model_available(self) -> bool:
@@ -54,6 +56,10 @@ class MeterReader:
 
             self._segment, self._detect = load_models(
                 str(self.settings.seg_weights), str(self.settings.digit_weights))
+            if self.settings.meter_model_weights.exists():
+                from meter_reader.meter_model import load_classifier
+
+                self._classify = load_classifier(self.settings.meter_model_weights)
         else:
             self._segment = self._load_segmenter_only()
         self._loaded = True
@@ -89,7 +95,7 @@ class MeterReader:
 
         available = self._detect is not None
         if available:
-            result = read_meter(image, self._segment, self._detect)
+            result = read_meter(image, self._segment, self._detect, self._classify)
             polygon, crop, flipped, reading = result.polygon, result.crop, result.flipped, result.reading
         else:
             polygon = self._segment(image)
@@ -104,13 +110,13 @@ class MeterReader:
         has_digits = available and reading is not None and bool(reading.text)
         return ReaderOutput(
             display_found=True,
-            reading=reading.text if has_digits else None,
+            reading=reading.formatted if has_digits else None,  # con punto entre m³ y fracción
             confidence=round(reading.confidence, 4) if has_digits else None,
             flipped=flipped,
             digits_model_available=available,
             overlay_jpeg=_encode(_draw_overlay(image, polygon)),
             crop_jpeg=_encode(crop),
-            digits_jpeg=_encode(_draw_digits(crop, reading.digits)) if has_digits else None,
+            digits_jpeg=_encode(_draw_digits(crop, reading.digits, reading.red_from)) if has_digits else None,
         )
 
 
@@ -139,15 +145,16 @@ def _draw_overlay(image, polygon):
     return canvas
 
 
-def _draw_digits(crop, digits):
-    """Recorte con la caja y la clase de cada dígito detectado."""
+def _draw_digits(crop, digits, red_from=None):
+    """Recorte con la caja y la clase de cada dígito: verde los m³, naranja la fracción (rojos)."""
     import cv2
 
     canvas = crop.copy()
     scale = max(0.4, canvas.shape[0] / 120)
-    for d in digits:
+    for i, d in enumerate(digits):
         p1, p2 = (int(d.x1), int(d.y1)), (int(d.x2), int(d.y2))
-        cv2.rectangle(canvas, p1, p2, (0, 200, 0), 2)
+        fraction = red_from is not None and i >= red_from
+        cv2.rectangle(canvas, p1, p2, (0, 140, 255) if fraction else (0, 200, 0), 2)
         cv2.putText(canvas, str(d.value), (p1[0], max(p1[1] - 4, 12)),
                     cv2.FONT_HERSHEY_SIMPLEX, scale * 0.6, (0, 0, 255), 2, cv2.LINE_AA)
     return canvas

@@ -8,7 +8,8 @@ derecha. Quedan tres casos que resolver:
   - rodillos a mitad de giro: el detector puede devolver dos dígitos en la misma posición;
     se conserva el de mayor confianza;
   - visor invertido (180°): la rectificación no lo distingue. Se lee el recorte en ambas
-    orientaciones y se elige la de mayor confianza media (best_orientation).
+    orientaciones y se elige la de mayor confianza media (best_orientation); antes, el
+    pipeline prefiere la orientación que deja la fracción roja a la derecha (ver color.py).
 """
 
 from dataclasses import dataclass
@@ -37,12 +38,23 @@ class Digit:
 
 @dataclass(frozen=True)
 class Reading:
-    """Lectura armada. confidence es la del dígito más débil; mean_confidence, el promedio."""
+    """Lectura armada. confidence es la del dígito más débil; mean_confidence, el promedio.
+
+    red_from: posición del primer dígito rojo (fracción de m³), o None si no se distinguió.
+    """
 
     text: str
     confidence: float
     mean_confidence: float
     digits: tuple[Digit, ...]
+    red_from: int | None = None
+
+    @property
+    def formatted(self) -> str:
+        """Lectura con un punto entre los m³ (negros) y la fracción (rojos): 0127.34."""
+        if not self.red_from:
+            return self.text
+        return f"{self.text[:self.red_from]}.{self.text[self.red_from:]}"
 
 
 def _same_position(a: Digit, b: Digit) -> bool:

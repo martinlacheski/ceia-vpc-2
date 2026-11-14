@@ -22,6 +22,8 @@ class Settings:
     src_dir: Path = REPO_ROOT / "src"  # contiene el paquete meter_reader
     seg_weights: Path = REPO_ROOT / "models" / "toloka_yfzw4_yolov8n_seg.pt"
     digit_weights: Path = REPO_ROOT / "models" / "digits_yolov8n.pt"
+    # Clasificador del modelo de medidor (dónde va el punto); si falta, decide el color
+    meter_model_weights: Path = REPO_ROOT / "models" / "meter_layout_mnv3s.pt"
     # Solo demo: cambiar SECRET_KEY y DEMO_PASSWORD en cualquier despliegue público.
     # Almacenamiento S3 (SeaweedFS en compose). Sin endpoint se usa el disco (data_dir).
     s3_endpoint: str | None = None
@@ -45,6 +47,7 @@ class Settings:
             src_dir=Path(env("METER_READER_SRC", str(defaults.src_dir))),
             seg_weights=Path(env("SEG_WEIGHTS", str(defaults.seg_weights))),
             digit_weights=Path(env("DIGIT_WEIGHTS", str(defaults.digit_weights))),
+            meter_model_weights=Path(env("METER_MODEL_WEIGHTS", str(defaults.meter_model_weights))),
             s3_endpoint=env("S3_ENDPOINT") or None,
             s3_access_key=env("S3_ACCESS_KEY", defaults.s3_access_key),
             s3_secret_key=env("S3_SECRET_KEY", defaults.s3_secret_key),

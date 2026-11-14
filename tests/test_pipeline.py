@@ -47,3 +47,79 @@ def test_upside_down_display_is_read_in_the_flipped_orientation():
 def test_no_display_gives_empty_result():
     result = read_meter(image_with_marker(), lambda img: None, detector_reading("1"))
     assert result.reading.text == "" and result.polygon is None and result.crop is None
+
+
+def test_red_digits_on_the_right_become_the_fraction():
+    image = image_with_marker()
+    image[100:140, 250:300] = (60, 60, 200)  # los dos últimos rodillos sobre fondo rojo (BGR)
+
+    def detect(crop):
+        w = crop.shape[1]
+        step = w / 6
+        return [Digit(v, 0.9, i * step + 2, 2, (i + 1) * step - 2, crop.shape[0] - 2)
+                for i, v in enumerate([0, 0, 3, 4, 8, 1])]
+
+    result = read_meter(image, lambda img: POLYGON, detect)
+    assert result.reading.text == "003481"
+    assert result.reading.red_from == 4
+    assert result.reading.formatted == "0034.81"
+
+
+def test_red_fraction_on_the_right_decides_orientation_over_confidence():
+    # Caso real (CEML m0174): la versión girada tenía apenas más confianza (0,837 contra 0,829)
+    image = image_with_marker()
+    image[100:140, 250:300] = (60, 60, 200)  # fracción roja a la derecha del visor derecho
+
+    def detect(crop):
+        w = crop.shape[1]
+        red_on_left = crop[:, : w // 4, 2].mean() > crop[:, -w // 4:, 2].mean() + 30
+        conf = 0.837 if red_on_left else 0.829  # el detector prefiere por poco la orientación equivocada
+        step = w / 6
+        return [Digit(v, conf, i * step + 2, 2, (i + 1) * step - 2, crop.shape[0] - 2)
+                for i, v in enumerate([0, 0, 6, 4, 5, 7])]
+
+    result = read_meter(image, lambda img: POLYGON, detect)
+    assert result.flipped is False
+    assert result.reading.formatted == "0064.57"
+
+
+def six_digit_detector(values=(0, 0, 3, 4, 8, 1)):
+    def detect(crop):
+        step = crop.shape[1] / len(values)
+        return [Digit(v, 0.9, i * step + 2, 2, (i + 1) * step - 2, crop.shape[0] - 2)
+                for i, v in enumerate(values)]
+    return detect
+
+
+def test_meter_model_places_the_fraction_when_the_red_is_not_visible():
+    seen = []
+
+    def classify(image):
+        seen.append(image.shape)
+        return "4_2", 0.9
+
+    result = read_meter(image_with_marker(), lambda img: POLYGON, six_digit_detector(), classify)
+    assert result.reading.formatted == "0034.81"
+    assert result.meter_model == "4_2"
+    assert seen == [(192, 384, 3)]  # recibe el visor con su entorno (layout.model_input)
+
+
+def test_meter_model_without_fraction_removes_a_color_split():
+    image = image_with_marker()
+    image[100:140, 250:300] = (60, 60, 200)  # rojo que no es fracción (por ejemplo, óxido)
+    result = read_meter(image, lambda img: POLYGON, six_digit_detector(), lambda img: ("qn15_6_0", 0.9))
+    assert result.reading.red_from is None
+    assert result.reading.formatted == "003481"
+
+
+def test_unsure_meter_model_falls_back_to_the_color_rule():
+    image = image_with_marker()
+    image[100:140, 250:300] = (60, 60, 200)
+    result = read_meter(image, lambda img: POLYGON, six_digit_detector(), lambda img: ("5_1", 0.3))
+    assert result.reading.formatted == "0034.81"  # decide el color
+    assert result.meter_model is None
+
+
+def test_without_classifier_the_meter_model_is_unknown():
+    result = read_meter(image_with_marker(), lambda img: POLYGON, six_digit_detector())
+    assert result.meter_model is None

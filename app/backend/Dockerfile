@@ -26,6 +26,7 @@ COPY data/ceml /srv/data/ceml
 ENV METER_READER_SRC=/srv/src \
     SEG_WEIGHTS=/srv/models/toloka_yfzw4_yolov8n_seg.pt \
     DIGIT_WEIGHTS=/srv/models/digits_yolov8n.pt \
+    METER_MODEL_WEIGHTS=/srv/models/meter_layout_mnv3s.pt \
     CEML_DIR=/srv/data/ceml
 
 WORKDIR /srv/backend

@@ -9,7 +9,8 @@ Leer automáticamente el estado de medidores de agua de tipo rodillo a partir de
 1. **Segmentación de instancia del visor**: YOLOv8n-seg vs Mask R-CNN.
 2. **Rectificación**: se ajusta un rectángulo rotado mínimo a la máscara y se endereza el visor con una transformación afín (`src/meter_reader/rectify.py`).
 3. **Detección de dígitos**: YOLOv8 con una clase por dígito (0–9); la lectura se obtiene ordenando las detecciones.
-4. **Baseline**: OCR genérico (EasyOCR) sobre el mismo recorte.
+4. **m³ y fracción**: cada modelo de medidor tiene una cantidad fija de rodillos de m³ (lo que se factura) y de fracción. Una CNN (MobileNetV3, transfer learning) clasifica el formato a partir del visor con su entorno (logo, marco) y fija dónde va el punto (`src/meter_reader/layout.py`, `scripts/train_meter_model.py`); si duda, los dígitos rojos se separan de los negros por el exceso de rojo de cada caja (`src/meter_reader/color.py`). La lectura queda como `00053.25`.
+5. **Baseline**: OCR genérico (EasyOCR) sobre el mismo recorte.
 
 **Experimento principal:** evaluar si segmentar y rectificar el visor mejora la lectura frente a un recorte por bounding box. Métricas: exactitud de lectura completa y CER.
 
