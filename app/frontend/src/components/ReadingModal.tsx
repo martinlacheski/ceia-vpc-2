@@ -1,12 +1,16 @@
-import { useState } from 'react'
-import type { Reading } from '../api'
-import { isLowConfidence } from '../constants'
+import { useState, type FormEvent } from 'react'
+import { api, type Reading } from '../api'
+import { observation } from '../constants'
 import { formatDate, formatLocation, mapUrl } from '../format'
-import { Badge } from '../ui/badge'
+import { Alert, AlertDescription } from '../ui/alert'
+import { Button } from '../ui/button'
+import { Input } from '../ui/input'
+import ObservationBadge from './ObservationBadge'
+import ReadingsMap from './ReadingsMap'
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog'
 
-const KINDS = [
-  { kind: 'overlay', title: 'Visor detectado' },
+// Van debajo de la segmentación del visor y el mapa
+const RECTIFIED = [
   { kind: 'crop', title: 'Visor rectificado' },
   { kind: 'digits', title: 'Dígitos detectados' },
 ] as const
@@ -30,60 +34,148 @@ function Processed({ readingId, kind, title }: { readingId: number; kind: string
 }
 
 // Modal con la foto de la lectura y sus datos; Esc, botón y clic fuera lo cierran (Radix gestiona foco y aria-modal)
-export default function ReadingModal({ reading, onClose }: { reading: Reading | null; onClose: () => void }) {
+// onReviewed recibe la lectura actualizada después de que el admin la confirma o corrige
+export default function ReadingModal({
+  reading,
+  onClose,
+  onReviewed,
+}: {
+  reading: Reading | null
+  onClose: () => void
+  onReviewed?: (reading: Reading) => void
+}) {
   const loc = reading ? formatLocation(reading.lat, reading.lon, reading.accuracy_m) : null
+  const located = reading !== null && reading.lat !== null && reading.lon !== null
   return (
     <Dialog open={reading !== null} onOpenChange={(open) => !open && onClose()}>
       {reading && (
-        // Ancho: en pantallas grandes, foto a la izquierda y datos e imágenes procesadas a la derecha
-        <DialogContent aria-modal="true" closeLabel="Cerrar" className="w-[calc(100%-2rem)] max-w-6xl sm:w-[calc(100%-2rem)]">
+        // En pantallas grandes: foto original a la izquierda; a la derecha datos, segmentación del visor con el mapa y debajo el visor rectificado y los dígitos
+        <DialogContent
+          aria-modal="true"
+          closeLabel="Cerrar"
+          className="max-h-[95dvh] w-[calc(100%-2rem)] max-w-[100rem] overflow-y-auto sm:w-[calc(100%-2rem)]"
+        >
           <DialogHeader>
             <DialogTitle>Lectura del medidor #{reading.meter_id}</DialogTitle>
             <DialogDescription>
               {reading.user.full_name} · {formatDate(reading.taken_at)}
             </DialogDescription>
           </DialogHeader>
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-          <img
-            className="max-h-[75dvh] w-full rounded-md border bg-muted object-contain"
-            src={`/api/readings/${reading.id}/photo`}
-            alt={`Foto de la lectura ${reading.id}`}
-          />
-          <div className="flex min-w-0 flex-col gap-4">
-          <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
-            <Item label="Lectura final">
-              <span className="text-lg font-semibold">{reading.value}</span>{' '}
-              {reading.corrected && <Badge variant="warning">corregida</Badge>}
-            </Item>
-            <Item label="Lectura propuesta">{reading.proposed_value ?? '—'}</Item>
-            <Item label="Confianza">
-              {reading.confidence === null ? '—' : `${Math.round(reading.confidence * 100)}%`}{' '}
-              {isLowConfidence(reading.confidence) && <Badge variant="destructive">revisar</Badge>}
-            </Item>
-            <Item label="Lecturista">{reading.user.full_name}</Item>
-            <Item label="Fecha">{formatDate(reading.taken_at)}</Item>
-            <Item label="Ubicación de la foto">
-              {reading.lat !== null && reading.lon !== null && loc ? (
-                <a className="underline underline-offset-4" href={mapUrl(reading.lat, reading.lon)} target="_blank" rel="noreferrer">
-                  {loc}
-                </a>
-              ) : (
-                <span className="text-muted-foreground">sin dato</span>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <img
+              className="max-h-[80dvh] w-full rounded-md border bg-muted object-contain"
+              src={`/api/readings/${reading.id}/photo`}
+              alt={`Foto de la lectura ${reading.id}`}
+            />
+            <div className="flex min-w-0 flex-col gap-4">
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
+                <Item label="Lectura final">
+                  <span className="text-lg font-semibold">{reading.final_value}</span> <ObservationBadge reading={reading} />
+                </Item>
+                <Item label="Lectura propuesta">{reading.proposed_value ?? '—'}</Item>
+                <Item label="Confianza">
+                  {reading.confidence === null ? '—' : `${Math.round(reading.confidence * 100)}%`}
+                </Item>
+                <Item label="Lecturista">
+                  {reading.user.full_name}
+                  {reading.review && reading.review.value !== reading.value && (
+                    <span className="block text-xs text-muted-foreground">confirmó {reading.value}</span>
+                  )}
+                </Item>
+                <Item label="Fecha">{formatDate(reading.taken_at)}</Item>
+                <Item label="Ubicación de la foto">
+                  {located && loc ? (
+                    <a className="underline underline-offset-4" href={mapUrl(reading.lat as number, reading.lon as number)} target="_blank" rel="noreferrer">
+                      {loc}
+                    </a>
+                  ) : (
+                    <span className="text-muted-foreground">sin dato</span>
+                  )}
+                </Item>
+                {reading.review && (
+                  <Item label="Revisión">
+                    {reading.review.reviewed_by.full_name} · {formatDate(reading.review.reviewed_at)}
+                  </Item>
+                )}
+              </dl>
+              {observation(reading) === 'revisar' && onReviewed && (
+                <ReviewForm key={reading.id} reading={reading} onReviewed={onReviewed} />
               )}
-            </Item>
-          </dl>
-          <div className="grid grid-cols-2 gap-3">
-            {KINDS.map((k) => (
-              <div key={k.kind} className={k.kind === 'overlay' ? 'col-span-1 row-span-2' : 'col-span-1'}>
-                <Processed readingId={reading.id} kind={k.kind} title={k.title} />
+              <div className="grid gap-3 sm:grid-cols-2">
+                <Processed readingId={reading.id} kind="overlay" title="Segmentación del visor" />
+                {located ? (
+                  <figure className="flex flex-col gap-1">
+                    <ReadingsMap readings={[reading]} height={320} />
+                    <figcaption className="text-xs text-muted-foreground">Lugar donde se tomó la foto</figcaption>
+                  </figure>
+                ) : (
+                  <p className="text-sm text-muted-foreground">La foto no tiene ubicación registrada.</p>
+                )}
               </div>
-            ))}
-          </div>
-          </div>
+              <div className="grid grid-cols-2 gap-3">
+                {RECTIFIED.map((k) => (
+                  <Processed key={k.kind} readingId={reading.id} kind={k.kind} title={k.title} />
+                ))}
+              </div>
+            </div>
           </div>
         </DialogContent>
       )}
     </Dialog>
+  )
+}
+
+const VALID_VALUE = /^\d+(\.\d+)?$/
+
+// Revisión del admin: confirma el valor del lecturista o lo corrige
+function ReviewForm({ reading, onReviewed }: { reading: Reading; onReviewed: (reading: Reading) => void }) {
+  const [value, setValue] = useState(reading.value)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const valid = VALID_VALUE.test(value)
+  const changed = value !== reading.value
+
+  async function submit(e: FormEvent) {
+    e.preventDefault()
+    if (!valid) return
+    setSaving(true)
+    setError(null)
+    try {
+      onReviewed(await api.reviewReading(reading.id, value))
+    } catch (err) {
+      setError((err as Error).message)
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <form onSubmit={submit} className="flex flex-col gap-2 rounded-lg border border-destructive/40 p-3">
+      <label htmlFor="review-value" className="text-sm font-medium">
+        Valor revisado
+      </label>
+      <p className="text-xs text-muted-foreground">
+        La confianza del modelo fue baja y el lecturista no corrigió el valor. Compará con la foto y confirmalo o corregilo.
+      </p>
+      <div className="flex flex-wrap gap-2">
+        <Input
+          id="review-value"
+          className="w-40"
+          inputMode="decimal"
+          value={value}
+          onChange={(e) => setValue(e.target.value.trim())}
+          aria-invalid={!valid}
+        />
+        <Button type="submit" disabled={!valid || saving}>
+          {changed ? 'Guardar corrección' : 'Confirmar valor'}
+        </Button>
+      </div>
+      {error && (
+        <Alert variant="destructive">
+          <AlertDescription className="text-destructive">{error}</AlertDescription>
+        </Alert>
+      )}
+    </form>
   )
 }
 

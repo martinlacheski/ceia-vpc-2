@@ -26,13 +26,18 @@ def last_reading(db: Session, meter_id: int) -> Reading | None:
                      .order_by(Reading.taken_at.desc(), Reading.id.desc()).limit(1))
 
 
+def final_value(reading: Reading) -> str:
+    """Valor vigente: el de la revisión del administrador si la hubo, si no el del lecturista."""
+    return reading.reviewed_value if reading.reviewed_value is not None else reading.value
+
+
 def meter_out(db: Session, meter: Meter) -> dict:
     last = last_reading(db, meter.id)
     return {
         "id": meter.id, "code": meter.code, "address": meter.address,
         "lat": meter.lat, "lon": meter.lon,
         "status": "read" if last else "pending",
-        "last_reading": {"value": last.value, "taken_at": iso(last.taken_at)} if last else None,
+        "last_reading": {"value": final_value(last), "taken_at": iso(last.taken_at)} if last else None,
     }
 
 
@@ -44,6 +49,13 @@ def reading_out(reading: Reading) -> dict:
         "accuracy_m": reading.accuracy_m,
         "taken_at": iso(reading.taken_at),
         "user": {"id": reading.user.id, "full_name": reading.user.full_name},
+        "route": {"id": reading.meter.route.id, "name": reading.meter.route.name},
+        "final_value": final_value(reading),
+        "review": None if reading.reviewed_value is None else {
+            "value": reading.reviewed_value,
+            "reviewed_by": {"id": reading.reviewed_by.id, "full_name": reading.reviewed_by.full_name},
+            "reviewed_at": iso(reading.reviewed_at),
+        },
     }
 
 

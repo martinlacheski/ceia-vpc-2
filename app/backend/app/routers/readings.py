@@ -3,7 +3,7 @@
 import base64
 import uuid
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile
 from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from ..auth import admin_user, current_user, get_settings
 from ..config import Settings
 from ..db import get_db
-from ..models import Analysis, Meter, Reading, Route, User
+from ..models import Analysis, Meter, Reading, Route, User, utcnow
 from ..serializers import accessible_meter, reading_out
 from ..storage import Storage
 from ..vision import MeterReader, get_reader
@@ -108,8 +108,11 @@ def create_reading(body: ReadingIn, meter: Meter = Depends(accessible_meter),
 
 
 @router.get("/readings")
-def list_readings(route_id: int | None = None, meter_id: int | None = None,
+def list_readings(response: Response, route_id: int | None = None, meter_id: int | None = None,
+                  limit: int | None = Query(None, ge=1, le=100), offset: int = Query(0, ge=0),
                   db: Session = Depends(get_db), user: User = Depends(current_user)):
+    """Lecturas de la más nueva a la más vieja. Con limit/offset devuelve una página;
+    el total (con los filtros aplicados) va siempre en el encabezado X-Total-Count."""
     query = select(Reading).order_by(Reading.taken_at.desc(), Reading.id.desc())
     if user.role != "admin":
         query = query.where(Reading.user_id == user.id)
@@ -120,6 +123,10 @@ def list_readings(route_id: int | None = None, meter_id: int | None = None,
         query = query.join(Meter, Meter.id == Reading.meter_id).where(Meter.route_id == route_id)
     if meter_id is not None:
         query = query.where(Reading.meter_id == meter_id)
+    total = db.scalar(select(func.count()).select_from(query.order_by(None).subquery()))
+    response.headers["X-Total-Count"] = str(total)
+    if limit is not None:
+        query = query.limit(limit).offset(offset)
     return [reading_out(r) for r in db.scalars(query)]
 
 
@@ -130,6 +137,25 @@ def _accessible_reading(reading_id: int, db: Session, user: User) -> Reading:
     if user.role != "admin" and reading.user_id != user.id:
         raise HTTPException(403, "No tenés acceso a esta lectura")
     return reading
+
+
+class ReviewIn(BaseModel):
+    value: str = Field(pattern=r"^\d+(\.\d+)?$")
+
+
+@router.post("/readings/{reading_id}/review")
+def review_reading(reading_id: int, body: ReviewIn, db: Session = Depends(get_db),
+                   admin: User = Depends(admin_user)):
+    """El administrador confirma o corrige el valor de una lectura (por ejemplo, una marcada "revisar")."""
+    reading = db.get(Reading, reading_id)
+    if reading is None:
+        raise HTTPException(404, "Lectura no encontrada")
+    reading.reviewed_value = body.value
+    reading.reviewed_by_id = admin.id
+    reading.reviewed_at = utcnow()
+    db.commit()
+    db.refresh(reading)
+    return reading_out(reading)
 
 
 @router.get("/readings/{reading_id}/photo")

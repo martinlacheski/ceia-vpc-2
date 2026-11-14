@@ -65,6 +65,9 @@ export interface Reading {
   accuracy_m: number | null
   taken_at: string
   user: { id: number; full_name: string }
+  route: { id: number; name: string }
+  final_value: string // valor vigente: el de la revisión del admin si la hubo, si no el del lecturista
+  review: ReadingReview | null
 }
 
 export interface Stats {
@@ -72,6 +75,17 @@ export interface Stats {
   accepted_without_correction_pct: number | null
   meters_total: number
   meters_read: number
+}
+
+export interface ReadingReview {
+  value: string
+  reviewed_by: { id: number; full_name: string }
+  reviewed_at: string
+}
+
+export interface ReadingsPage {
+  items: Reading[]
+  total: number
 }
 
 export class ApiError extends Error {
@@ -83,6 +97,10 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  return (await requestWithHeaders<T>(path, init)).data
+}
+
+async function requestWithHeaders<T>(path: string, init: RequestInit = {}): Promise<{ data: T; headers: Headers }> {
   const res = await fetch(path, { credentials: 'include', ...init })
   if (!res.ok) {
     let detail = `Error ${res.status}`
@@ -95,8 +113,8 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
     }
     throw new ApiError(res.status, detail)
   }
-  if (res.status === 204) return undefined as T
-  return (await res.json()) as T
+  if (res.status === 204) return { data: undefined as T, headers: res.headers }
+  return { data: (await res.json()) as T, headers: res.headers }
 }
 
 const json = (body: unknown): RequestInit => ({
@@ -132,6 +150,16 @@ export const api = {
     const s = q.toString()
     return request<Reading[]>(`/api/readings${s ? `?${s}` : ''}`)
   },
+  // Una página del historial; el total viene en el encabezado X-Total-Count
+  readingsPage: async (params: { route_id?: number; limit: number; offset: number }): Promise<ReadingsPage> => {
+    const q = new URLSearchParams()
+    if (params.route_id) q.set('route_id', String(params.route_id))
+    q.set('limit', String(params.limit))
+    q.set('offset', String(params.offset))
+    const { data, headers } = await requestWithHeaders<Reading[]>(`/api/readings?${q}`)
+    return { items: data, total: Number(headers.get('X-Total-Count') ?? data.length) }
+  },
+  reviewReading: (id: number, value: string) => request<Reading>(`/api/readings/${id}/review`, json({ value })),
   stats: () => request<Stats>('/api/stats'),
 }
 

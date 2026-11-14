@@ -67,7 +67,7 @@ class Reading(Base):
     meter_id: Mapped[int] = mapped_column(ForeignKey("meters.id"), index=True)
     meter: Mapped[Meter] = relationship()
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    user: Mapped[User] = relationship()
+    user: Mapped[User] = relationship(foreign_keys=[user_id])
     analysis_id: Mapped[str] = mapped_column(ForeignKey("analyses.id"), unique=True)
     analysis: Mapped[Analysis] = relationship()
     value: Mapped[str] = mapped_column(String(50))
@@ -78,6 +78,12 @@ class Reading(Base):
     lon: Mapped[float | None] = mapped_column(Float)
     accuracy_m: Mapped[float | None] = mapped_column(Float)
     taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    # Revisión del administrador: no pisa lo que confirmó el lecturista (value, corrected),
+    # para que la métrica de aceptación del modelo en campo siga siendo la original.
+    reviewed_value: Mapped[str | None] = mapped_column(String(50))
+    reviewed_by_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_by: Mapped[User | None] = relationship(foreign_keys=[reviewed_by_id])
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
 
 __all__ = ["User", "Route", "Meter", "Analysis", "Reading"]

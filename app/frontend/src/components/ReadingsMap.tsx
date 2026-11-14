@@ -7,7 +7,7 @@ import { Button } from '../ui/button'
 
 interface Props {
   readings: Reading[] // solo lecturas con ubicación
-  onOpen: (reading: Reading) => void
+  onOpen?: (reading: Reading) => void // sin onOpen, el popup no ofrece abrir la foto
   height?: number
 }
 
@@ -59,13 +59,15 @@ export default function ReadingsMap({ readings, onOpen, height = 360 }: Props) {
               <div className="flex flex-col gap-1 text-sm">
                 <strong>Medidor #{r.meter_id}</strong>
                 <span>
-                  Lectura: <b>{r.value}</b>
+                  Lectura: <b>{r.final_value}</b>
                 </span>
                 <span>{r.user.full_name}</span>
                 <span>{formatDate(r.taken_at)}</span>
-                <Button size="sm" type="button" onClick={() => onOpen(r)}>
-                  Ver foto
-                </Button>
+                {onOpen && (
+                  <Button size="sm" type="button" onClick={() => onOpen(r)}>
+                    Ver foto
+                  </Button>
+                )}
               </div>
             </Popup>
           </CircleMarker>

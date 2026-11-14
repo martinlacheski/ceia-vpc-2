@@ -1,4 +1,4 @@
-import { GaugeIcon, LayoutDashboardIcon, LogOutIcon, RouteIcon } from 'lucide-react'
+import { GaugeIcon, HistoryIcon, LayoutDashboardIcon, LogOutIcon, MapIcon, RouteIcon } from 'lucide-react'
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../auth'
 import { Button } from '../ui/button'
@@ -11,7 +11,11 @@ export default function Layout() {
   const navigate = useNavigate()
   const isAdmin = user?.role === 'admin'
   const items = isAdmin
-    ? [{ to: '/admin', label: 'Panel', icon: <LayoutDashboardIcon /> }]
+    ? [
+        { to: '/admin', label: 'Panel', icon: <LayoutDashboardIcon /> },
+        { to: '/admin/mapa', label: 'Mapa de lecturas', icon: <MapIcon /> },
+        { to: '/admin/historial', label: 'Historial de lecturas', icon: <HistoryIcon /> },
+      ]
     : [{ to: '/rutas', label: 'Mis rutas', icon: <RouteIcon /> }]
 
   async function exit() {
@@ -34,7 +38,7 @@ export default function Layout() {
         </Link>
         <nav aria-label="Navegación principal" className="flex flex-col gap-1">
           {items.map((it) => (
-            <NavLink key={it.to} to={it.to} className={navClass}>
+            <NavLink key={it.to} to={it.to} end className={navClass}>
               {it.icon}
               {it.label}
             </NavLink>

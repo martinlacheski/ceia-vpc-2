@@ -1,5 +1,6 @@
 """Las migraciones de app/db deben crear el esquema y coincidir con los modelos."""
 
+from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.migration import MigrationContext
 from fastapi.testclient import TestClient
@@ -9,7 +10,7 @@ from app.config import Settings
 from app.db import Base
 from app.main import create_app
 from app.vision import get_reader
-from helpers import login, migrate
+from helpers import alembic_config, login, migrate
 import app.models  # noqa: F401  registra las tablas en Base.metadata
 
 
@@ -41,3 +42,18 @@ def test_api_does_not_create_tables(tmp_path, fake_reader, settings):
     except Exception:
         raised = True
     assert raised  # sin migrar, el arranque falla en vez de crear tablas a escondidas
+
+
+def test_review_migration_downgrades_and_upgrades(tmp_path):
+    url = f"sqlite:///{tmp_path / 'roundtrip.db'}"
+    migrate(url)
+    review_columns = {"reviewed_value", "reviewed_by_id", "reviewed_at"}
+
+    def columns():
+        return {c["name"] for c in inspect(create_engine(url)).get_columns("readings")}
+
+    assert review_columns <= columns()
+    command.downgrade(alembic_config(url), "0001_initial")
+    assert not review_columns & columns()
+    command.upgrade(alembic_config(url), "head")
+    assert review_columns <= columns()

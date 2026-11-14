@@ -6,6 +6,8 @@ import ReaderHome from './pages/ReaderHome'
 import RouteView from './pages/RouteView'
 import TakeReading from './pages/TakeReading'
 import Admin from './pages/Admin'
+import AdminHistory from './pages/AdminHistory'
+import AdminMap from './pages/AdminMap'
 
 // Guarda de ruta: sin sesión (401 en /api/auth/me) se redirige al login
 function Protected({ role }: { role?: 'admin' | 'reader' }) {
@@ -34,6 +36,8 @@ export default function App() {
         </Route>
         <Route element={<Protected role="admin" />}>
           <Route path="/admin" element={<Admin />} />
+          <Route path="/admin/mapa" element={<AdminMap />} />
+          <Route path="/admin/historial" element={<AdminHistory />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

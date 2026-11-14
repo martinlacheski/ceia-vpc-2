@@ -9,7 +9,8 @@ export interface Call {
   body?: unknown
 }
 
-type Handler = (call: Call) => { status?: number; json?: unknown }
+type MockResponse = { status?: number; json?: unknown; headers?: Record<string, string> }
+type Handler = (call: Call) => MockResponse
 
 // fetch simulado: busca el primer handler cuyo "METODO /ruta" coincide
 export function mockApi(handlers: Record<string, Handler | unknown>) {
@@ -24,11 +25,11 @@ export function mockApi(handlers: Record<string, Handler | unknown>) {
     const key = Object.keys(handlers).find((k) => k === `${method} ${url}`)
     if (!key) return new Response(JSON.stringify({ detail: 'no mock' }), { status: 404 })
     const h = handlers[key]
-    const res = typeof h === 'function' ? (h as Handler)(call) : (h as { status?: number; json?: unknown })
+    const res = typeof h === 'function' ? (h as Handler)(call) : (h as MockResponse)
     const status = res.status ?? 200
     return new Response(status === 204 ? null : JSON.stringify(res.json ?? null), {
       status,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...res.headers },
     })
   })
   vi.stubGlobal('fetch', fn)

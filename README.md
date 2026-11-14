@@ -88,9 +88,9 @@ ngrok muestra la URL pública en la línea *Forwarding* (`https://....ngrok-free
 2. Ingresar con `lector1` (o `lector2`) y la contraseña elegida.
 3. Entrar a la ruta y elegir un medidor (son medidores de prueba; se puede fotografiar cualquier medidor de agua de rodillos).
 4. Tocar el campo **Foto del medidor**: el celular ofrece abrir la cámara. Encuadrar el visor con buena luz y sin reflejos, y sacar la foto.
-5. La app muestra el visor detectado, el visor rectificado, los dígitos detectados y la lectura propuesta. Corregirla si hace falta y tocar **Confirmar lectura**.
+5. La app muestra la segmentación del visor, el visor rectificado, los dígitos detectados y la lectura propuesta. Corregirla si hace falta y tocar **Confirmar lectura**.
 6. Aceptar el permiso de **ubicación** cuando el navegador lo pida: la lectura se guarda con el punto GPS donde se tomó la foto.
-7. Con `admin` se ven todas las lecturas, sus fotos y la ubicación de cada una en el mapa de OpenStreetMap.
+7. Con `admin`, la pestaña **Mapa de lecturas** muestra dónde se tomó cada foto (satélite o calles) y **Historial de lecturas** lista todas las lecturas; cada una abre un detalle con la foto, la segmentación del visor, el visor rectificado, los dígitos y el mapa de la ubicación.
 
 **Precisión del GPS**
 

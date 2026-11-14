@@ -168,7 +168,7 @@ function AnalysisPanel(props: {
         )}
         {a.display_found && (
           <div className="grid gap-3 sm:grid-cols-3">
-            <Figure title="Visor detectado" src={a.images.overlay} />
+            <Figure title="Segmentación del visor" src={a.images.overlay} />
             <Figure title="Visor rectificado" src={a.images.crop} />
             <Figure title="Dígitos detectados" src={a.images.digits} />
           </div>

@@ -74,11 +74,13 @@ def test_reading_accepted_without_correction(reader1, photo):
     assert response.status_code == 201
     body = response.json()
     assert set(body) == {"id", "meter_id", "value", "proposed_value", "corrected", "confidence",
-                         "lat", "lon", "accuracy_m", "taken_at", "user"}
+                         "lat", "lon", "accuracy_m", "taken_at", "user", "route", "final_value", "review"}
     assert body["proposed_value"] == "01234" and body["corrected"] is False
     assert body["confidence"] == 0.9
     assert body["lat"] is None and body["lon"] is None and body["accuracy_m"] is None
     assert body["user"]["full_name"]
+    route = reader1.get("/api/routes").json()[0]
+    assert body["route"] == {"id": route["id"], "name": route["name"]}
 
 
 def test_reading_corrected_keeps_proposed_and_value(reader1, photo):
@@ -222,3 +224,77 @@ def test_reading_images_permissions(client, photo):
     client.post("/api/auth/logout")
     login(client, "admin")
     assert client.get(f"/api/readings/{reading_id}/images/overlay").status_code == 200
+
+
+def test_readings_list_paginates_with_total(reader1, photo):
+    meter = first_meter(reader1)
+    for value in ("1", "2", "3"):
+        analysis = analyze(reader1, meter["id"], photo)
+        reader1.post(f"/api/meters/{meter['id']}/readings",
+                     json={"analysis_id": analysis["analysis_id"], "value": value})
+    first = reader1.get("/api/readings?limit=2&offset=0")
+    assert [r["value"] for r in first.json()] == ["3", "2"]
+    assert first.headers["x-total-count"] == "3"
+    second = reader1.get("/api/readings?limit=2&offset=2")
+    assert [r["value"] for r in second.json()] == ["1"]
+    assert second.headers["x-total-count"] == "3"
+    # sin limit devuelve todo, como antes
+    everything = reader1.get("/api/readings")
+    assert len(everything.json()) == 3 and everything.headers["x-total-count"] == "3"
+    assert reader1.get("/api/readings?meter_id=9999").headers["x-total-count"] == "0"
+
+
+def test_readings_list_rejects_invalid_page(reader1):
+    for query in ("limit=0", "limit=101", "offset=-1"):
+        assert reader1.get(f"/api/readings?{query}").status_code == 422
+
+
+def test_new_reading_has_no_review_and_final_value_is_reader_value(reader1, photo):
+    reading_id = _create_reading(reader1, photo)
+    body = reader1.get("/api/readings").json()[0]
+    assert body["id"] == reading_id
+    assert body["review"] is None
+    assert body["final_value"] == body["value"] == "01234"
+
+
+def test_admin_review_corrects_final_value_without_touching_reader_data(client, photo):
+    login(client, "lector1")
+    reading_id = _create_reading(client, photo)
+    meter = first_meter(client)
+    login(client, "admin")
+    stats_before = client.get("/api/stats").json()
+    response = client.post(f"/api/readings/{reading_id}/review", json={"value": "01240"})
+    assert response.status_code == 200
+    body = response.json()
+    assert body["final_value"] == "01240"
+    assert body["value"] == "01234" and body["corrected"] is False  # lo del lecturista queda igual
+    assert body["review"]["value"] == "01240"
+    assert body["review"]["reviewed_by"]["full_name"]
+    assert body["review"]["reviewed_at"]
+    assert client.get("/api/readings").json()[0]["final_value"] == "01240"
+    # la última lectura del medidor muestra el valor final
+    route_id = client.get("/api/routes").json()[0]["id"]
+    meters = {m["id"]: m for m in client.get(f"/api/routes/{route_id}/meters").json()}
+    assert meters[meter["id"]]["last_reading"]["value"] == "01240"
+    # la métrica del modelo en campo no cambia por la revisión
+    assert client.get("/api/stats").json() == stats_before
+
+
+def test_admin_review_can_confirm_the_reader_value(client, photo):
+    login(client, "lector1")
+    reading_id = _create_reading(client, photo)
+    login(client, "admin")
+    body = client.post(f"/api/readings/{reading_id}/review", json={"value": "01234"}).json()
+    assert body["final_value"] == "01234" and body["review"]["value"] == "01234"
+
+
+def test_review_is_admin_only_and_validated(client, photo):
+    login(client, "lector1")
+    reading_id = _create_reading(client, photo)
+    assert client.post(f"/api/readings/{reading_id}/review", json={"value": "1"}).status_code == 403
+    client.post("/api/auth/logout")
+    assert client.post(f"/api/readings/{reading_id}/review", json={"value": "1"}).status_code == 401
+    login(client, "admin")
+    assert client.post("/api/readings/9999/review", json={"value": "1"}).status_code == 404
+    assert client.post(f"/api/readings/{reading_id}/review", json={"value": "12a"}).status_code == 422
+    assert client.get("/api/readings").json()[0]["review"] is None
