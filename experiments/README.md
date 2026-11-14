@@ -19,6 +19,18 @@ Métricas de máscara; en CEML se evalúan las 324 fotos salvo en E (validación
 
 Latencia en CPU (Ryzen AI, inferencia completa por imagen, media de 50 fotos CEML): A 24 ms, B 24 ms, C 51 ms. B y C se entrenaron en Kaggle (2× T4); las métricas se recalcularon localmente con `scripts/evaluate_seg.py` y coinciden con las de Kaggle.
 
+## Etapa 2: detección de dígitos
+
+Dataset: recortes del visor rectificado de water-meter-dataset (`scripts/prepare_digits.py`; 6.848 train, 719 val, 656 test), clases `0`–`9`. Sin espejado horizontal (`fliplr=0`): un dígito espejado cambia de clase o deja de ser un dígito.
+
+| # | Configuración | Experimento | Test mAP50 / mAP50-95 | Precisión / recall | Estado |
+|---|---|---|---|---|---|
+| D1 | YOLOv8n, 416 px, hasta 100 épocas (paciencia 20) | `digits_yolov8n` | 0,983 / 0,687 | 0,962 / 0,961 | Hecho (Kaggle, 2× T4; paró en la época 91, mejor la 71) |
+
+El mAP50-95 por dígito va de 0,672 (`1` y `4`) a 0,707 (`5`): no hay un dígito claramente más difícil.
+
+Primera prueba del pipeline completo sobre 12 fotos CEML al azar (inspección visual, sin lecturas de referencia todavía): los visores nítidos se leen bien salvo los rodillos rojos a mitad de giro; un visor invertido se resolvió con la elección de orientación; las fotos borrosas o empañadas fallan, pero con confianza mínima baja (0,25–0,51 frente a 0,69–0,85), lo que permite marcarlas para revisión manual.
+
 ## Notas
 
 - **B frente a A**: el visor derivado de water-meter-dataset sube el recall en CEML de 0,867 a 0,911 y el mAP50 de 0,858 a 0,937. En Toloka baja algo el mAP50-95 (0,877 → 0,847), esperable porque el visor derivado sigue el contorno de los dígitos y no el marco anotado en Toloka.
