@@ -45,6 +45,59 @@ Abrir http://localhost:8080. Usuarios de demo: `lector1`, `lector2` y `admin`, c
 
 `docker compose down` conserva los datos; `docker compose down -v` borra la base y las imágenes.
 
+### Probar desde el celular con ngrok
+
+El celular solo permite usar la cámara y el GPS en páginas servidas por HTTPS. [ngrok](https://ngrok.com) publica la app local con una URL HTTPS; alcanza con un único túnel (plan gratuito) hacia el servicio `web`, porque su nginx reenvía `/api` a la API.
+
+**1. Cuenta e instalación (una sola vez)**
+
+1. Crear una cuenta gratuita en https://dashboard.ngrok.com/signup.
+2. Instalar ngrok siguiendo https://ngrok.com/download (en Linux: `sudo snap install ngrok` o el paquete de la página).
+3. Copiar el *authtoken* desde *Your Authtoken* en el panel y registrarlo:
+
+   ```bash
+   ngrok config add-authtoken <TU_AUTHTOKEN>
+   ```
+
+   El token queda en la configuración local de ngrok (`~/.config/ngrok/ngrok.yml`); no debe copiarse en el repositorio.
+4. Opcional: en *Domains* del panel, reclamar el dominio estático gratuito (`<algo>.ngrok-free.app`), para que la URL no cambie entre sesiones.
+
+**2. Levantar la app con una contraseña propia**
+
+La URL de ngrok es pública: cualquiera que la tenga llega al login. Antes de exponerla, conviene reemplazar la contraseña de demo. Los usuarios se crean en el primer arranque, así que la contraseña se fija con la base vacía:
+
+```bash
+docker compose down -v      # solo si ya se había levantado con otra contraseña (borra lecturas e imágenes)
+DEMO_PASSWORD='<una-contraseña>' COOKIE_SECURE=true docker compose up -d --build
+```
+
+`COOKIE_SECURE=true` marca la cookie de sesión como segura, porque el acceso es por HTTPS.
+
+**3. Abrir el túnel**
+
+```bash
+ngrok http 8080                                   # URL nueva en cada sesión
+ngrok http --url=<tu-dominio>.ngrok-free.app 8080 # con el dominio estático
+```
+
+ngrok muestra la URL pública en la línea *Forwarding* (`https://....ngrok-free.app`). El túnel queda abierto mientras la terminal siga corriendo; se cierra con `Ctrl+C`.
+
+**4. Tomar una lectura real desde el celular**
+
+1. Abrir la URL `https://...` en el navegador del celular. El plan gratuito muestra primero un aviso de ngrok: tocar **Visit Site**.
+2. Ingresar con `lector1` (o `lector2`) y la contraseña elegida.
+3. Entrar a la ruta y elegir un medidor (son medidores de prueba; se puede fotografiar cualquier medidor de agua de rodillos).
+4. Tocar el campo **Foto del medidor**: el celular ofrece abrir la cámara. Encuadrar el visor con buena luz y sin reflejos, y sacar la foto.
+5. La app muestra el visor detectado, el visor rectificado, los dígitos detectados y la lectura propuesta. Corregirla si hace falta y tocar **Confirmar lectura**.
+6. Aceptar el permiso de **ubicación** cuando el navegador lo pida: la lectura se guarda con el punto GPS donde se tomó la foto.
+7. Con `admin` se ven todas las lecturas, sus fotos y la ubicación de cada una en el mapa de OpenStreetMap.
+
+**Si algo falla**
+
+- No pide ubicación o no la guarda: verificar que la URL empiece con `https://`, que el GPS del celular esté activo y que el navegador tenga permiso de ubicación para ese sitio (se puede revisar desde el candado de la barra de direcciones).
+- Error al analizar la foto: revisar `docker compose logs api`.
+- La URL dejó de andar: el túnel se cerró o cambió (sin dominio estático cambia en cada `ngrok http`).
+
 ## Integrantes
 
 - Lacheski, Martin
