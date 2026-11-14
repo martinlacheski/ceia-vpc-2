@@ -1,85 +1,69 @@
-import { useState } from 'react'
+import { ArrowLeftIcon } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
 import { api } from '../api'
-import { useLoad, useWatchPosition } from '../hooks'
+import { useLoad } from '../hooks'
 import { formatDate } from '../format'
+import PageHeader from '../components/PageHeader'
 import StatusBadge from '../components/StatusBadge'
-import MeterMap from '../components/MeterMap'
 import ProgressBar from '../components/ProgressBar'
+import { Alert, AlertDescription } from '../ui/alert'
+import { buttonVariants } from '../ui/button'
+import { Card, CardContent } from '../ui/card'
 
+// La ruta muestra solo el listado de medidores: no se ubican en un mapa (S12)
 export default function RouteView() {
   const routeId = Number(useParams().routeId)
-  const [tab, setTab] = useState<'list' | 'map'>('list')
   const meters = useLoad(() => api.routeMeters(routeId), [routeId])
   const routes = useLoad(() => api.routes(), [])
-  const { position, denied } = useWatchPosition()
   const route = routes.data?.find((r) => r.id === routeId)
 
   return (
     <>
-      <Link to="/" className="back">
-        ← Mis rutas
-      </Link>
-      <h1>{route?.name ?? 'Ruta'}</h1>
+      <PageHeader
+        title={route?.name ?? 'Ruta'}
+        backAction={
+          <Link to="/" className={buttonVariants({ variant: 'ghost', size: 'sm', className: 'w-fit' })}>
+            <ArrowLeftIcon /> Mis rutas
+          </Link>
+        }
+      />
       {route && (
-        <div className="stack-sm">
+        <div className="flex flex-col gap-2">
           <ProgressBar value={route.meters_read} total={route.meters_total} />
-          <span className="muted small">
+          <span className="text-sm text-muted-foreground">
             {route.meters_read} de {route.meters_total} medidores leídos
           </span>
         </div>
       )}
-      <div className="tabs" role="tablist">
-        <button role="tab" aria-selected={tab === 'list'} className={tab === 'list' ? 'tab active' : 'tab'} onClick={() => setTab('list')}>
-          Listado
-        </button>
-        <button role="tab" aria-selected={tab === 'map'} className={tab === 'map' ? 'tab active' : 'tab'} onClick={() => setTab('map')}>
-          Mapa
-        </button>
-      </div>
-      {meters.loading && <p className="muted">Cargando…</p>}
-      {meters.error && <p className="alert alert-error">{meters.error}</p>}
-      {meters.data && tab === 'list' && (
-        <ul className="stack list-plain">
+      {meters.loading && <p className="text-muted-foreground">Cargando…</p>}
+      {meters.error && (
+        <Alert variant="destructive">
+          <AlertDescription className="text-destructive">{meters.error}</AlertDescription>
+        </Alert>
+      )}
+      {meters.data && (
+        <ul className="flex flex-col gap-3">
           {meters.data.map((m) => (
             <li key={m.id}>
-              <Link to={`/meters/${m.id}/read`} className="card card-link">
-                <div className="row-between">
-                  <strong>{m.code}</strong>
-                  <StatusBadge status={m.status} />
-                </div>
-                <span>{m.address}</span>
-                {m.last_reading && (
-                  <span className="muted small">
-                    Última lectura: <b>{m.last_reading.value}</b> · {formatDate(m.last_reading.taken_at)}
-                  </span>
-                )}
+              <Link to={`/meters/${m.id}/read`} className="block rounded-xl outline-none transition-shadow hover:shadow-md focus-visible:ring-[3px] focus-visible:ring-ring/50">
+                <Card>
+                  <CardContent className="flex flex-col gap-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <strong>{m.code}</strong>
+                      <StatusBadge status={m.status} />
+                    </div>
+                    <span>{m.address}</span>
+                    {m.last_reading && (
+                      <span className="text-sm text-muted-foreground">
+                        Última lectura: <b>{m.last_reading.value}</b> · {formatDate(m.last_reading.taken_at)}
+                      </span>
+                    )}
+                  </CardContent>
+                </Card>
               </Link>
             </li>
           ))}
         </ul>
-      )}
-      {meters.data && tab === 'map' && (
-        <>
-          {denied && <p className="alert alert-warn">No se pudo obtener tu ubicación; el mapa muestra solo los medidores.</p>}
-          <MeterMap
-            meters={meters.data}
-            position={position}
-            height={440}
-            renderPopup={(m) => (
-              <div>
-                <strong>{m.code}</strong>
-                <br />
-                {m.address}
-                <br />
-                <Link to={`/meters/${m.id}/read`}>Tomar lectura</Link>
-              </div>
-            )}
-          />
-          <p className="muted small legend">
-            <span className="dot dot-pending" /> Pendiente <span className="dot dot-read" /> Leído <span className="dot dot-me" /> Vos
-          </p>
-        </>
       )}
     </>
   )

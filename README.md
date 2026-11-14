@@ -92,6 +92,14 @@ ngrok muestra la URL pública en la línea *Forwarding* (`https://....ngrok-free
 6. Aceptar el permiso de **ubicación** cuando el navegador lo pida: la lectura se guarda con el punto GPS donde se tomó la foto.
 7. Con `admin` se ven todas las lecturas, sus fotos y la ubicación de cada una en el mapa de OpenStreetMap.
 
+**Precisión del GPS**
+
+Una página web no elige entre GPS y Wi-Fi: pide la máxima precisión y el sistema operativo combina las fuentes disponibles. La app empieza a seguir la ubicación apenas se abre la pantalla del medidor, conserva la posición más precisa y la muestra en vivo (*GPS: ±6 m*; verde hasta 15 m, ámbar hasta 50 m, rojo por encima). El GPS tarda unos segundos en "engancharse": si el indicador no está en verde, conviene esperar antes de confirmar. Para que el celular use el GPS:
+
+- **Android**: *Ajustes → Ubicación* activada, con *Precisión de la ubicación de Google* encendida. En Chrome, el permiso del sitio debe ser *ubicación precisa* (no *aproximada*): candado de la barra de direcciones → *Permisos → Ubicación*.
+- **iPhone**: *Ajustes → Privacidad y seguridad → Localización → Safari* (o el navegador que se use) → *Al usar la app* y **Ubicación exacta** activada.
+- A cielo abierto el GPS es mucho más preciso; bajo techo el celular se apoya en Wi-Fi y antenas (decenas o cientos de metros).
+
 **Si algo falla**
 
 - No pide ubicación o no la guarda: verificar que la URL empiece con `https://`, que el GPS del celular esté activo y que el navegador tenga permiso de ubicación para ese sitio (se puede revisar desde el candado de la barra de direcciones).

@@ -11,6 +11,7 @@ export function formatLocation(lat: number | null, lon: number | null, accuracy:
   return accuracy === null ? coords : `${coords} (±${Math.round(accuracy)} m)`
 }
 
+// Enlace a Google Maps en vista satélite (URLs API, sin clave)
 export function mapUrl(lat: number, lon: number): string {
-  return `https://www.openstreetmap.org/?mlat=${lat}&mlon=${lon}#map=18/${lat}/${lon}`
+  return `https://www.google.com/maps/@?api=1&map_action=map&center=${lat},${lon}&zoom=19&basemap=satellite`
 }
