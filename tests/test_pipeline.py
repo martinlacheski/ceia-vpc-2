@@ -123,3 +123,20 @@ def test_unsure_meter_model_falls_back_to_the_color_rule():
 def test_without_classifier_the_meter_model_is_unknown():
     result = read_meter(image_with_marker(), lambda img: POLYGON, six_digit_detector())
     assert result.meter_model is None
+
+
+def test_bbox_crop_keeps_the_display_tilted_inside_its_axis_aligned_box():
+    # visor de 200 × 40 girado 45°: rectificado queda alargado; por caja, casi cuadrado
+    angle = np.deg2rad(45)
+    rotation = np.array([[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]])
+    corners = np.array([[-100, -20], [100, -20], [100, 20], [-100, 20]]) @ rotation.T + [200, 150]
+    image = np.full((300, 400, 3), 90, dtype=np.uint8)
+    rectified = read_meter(image, lambda img: corners, six_digit_detector())
+    boxed = read_meter(image, lambda img: corners, six_digit_detector(), rectified=False)
+    h, w = rectified.crop.shape[:2]
+    assert w > 3 * h
+    h, w = boxed.crop.shape[:2]
+    assert abs(w - h) <= 2
+    x0, y0 = corners.min(axis=0)
+    x1, y1 = corners.max(axis=0)
+    assert abs(w - (x1 - x0) * 1.1) <= 3  # la caja con el mismo margen relativo (CROP_PAD)

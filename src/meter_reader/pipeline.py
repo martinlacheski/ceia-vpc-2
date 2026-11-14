@@ -13,7 +13,7 @@ import numpy as np
 from .color import red_split, redness
 from .layout import fraction_start, layout_of, model_input
 from .reading import Digit, Reading, assemble_reading, best_orientation
-from .rectify import rectify
+from .rectify import bbox_crop, rectify
 
 Segmenter = Callable[[np.ndarray], np.ndarray | None]
 DigitDetector = Callable[[np.ndarray], list[Digit]]
@@ -37,17 +37,19 @@ class MeterResult:
 
 
 def read_meter(image: np.ndarray, segment: Segmenter, detect: DigitDetector,
-               classify: MeterClassifier | None = None) -> MeterResult:
+               classify: MeterClassifier | None = None, rectified: bool = True) -> MeterResult:
     """Lee un medidor a partir de la foto (BGR).
 
     Con `classify`, el modelo de medidor predicho decide cuántos dígitos son m³ y cuántos
     fracción; si el clasificador duda (probabilidad < MIN_MODEL_PROB), decide el color.
+    Con `rectified=False` el visor se recorta por su caja alineada a los ejes, sin enderezar
+    (línea de base del experimento principal).
     """
     polygon = segment(image)
     if polygon is None or len(polygon) < 3:
         return MeterResult(assemble_reading([]), None, None, False)
 
-    crop, _ = rectify(image, polygon, pad=CROP_PAD)
+    crop = rectify(image, polygon, pad=CROP_PAD)[0] if rectified else bbox_crop(image, polygon, pad=CROP_PAD)
     turned = np.ascontiguousarray(crop[::-1, ::-1])
     upright = _with_fraction(assemble_reading(detect(crop)), crop)
     flipped_reading = _with_fraction(assemble_reading(detect(turned)), turned)

@@ -67,6 +67,32 @@ En la primera corrida (con la planilla sin revisar) la variante por formato daba
 
 En el pipeline (`read_meter`), si el clasificador predice con probabilidad ≥ 0,5, su formato decide dónde va el punto (y lo saca en los medidores sin fracción); si duda, decide el color. Limitación: solo conoce los formatos que vio; un modelo nuevo con otra disposición se resuelve por el color.
 
+## Etapa 4: lectura de punta a punta en CEML
+
+`scripts/evaluate_pipeline.py` sobre las 323 fotos verificadas y legibles de `data/ceml/readings.csv` (316 con la fracción legible). Todas las configuraciones usan la misma segmentación del visor (B de la etapa 1). El clasificador de formato aporta su predicción out-of-fold (`experiments/meter_layout_mnv3s/oof.csv`): ninguna foto se lee con un clasificador que la haya visto. Resultados en `experiments/pipeline_ceml/` (`results.json` y `predictions.csv`, una columna por configuración).
+
+- **Exacta**: la lectura completa coincide, con el punto y los ceros (sobre las 316 con fracción legible).
+- **m³ exactos**: coincide la parte entera, lo que se factura (sobre las 323).
+- **CER**: errores de edición entre dígitos / dígitos reales.
+- **Sin lectura**: no se encontró el visor o ningún dígito.
+- **Sin revisión**: lecturas con confianza ≥ 0,5, que la app acepta sin marcarlas para revisar; entre paréntesis, cuántas de ellas son exactas.
+
+| # | Configuración | Exacta | m³ exactos | CER | Sin lectura | Sin revisión (exactas) |
+|---|---|---|---|---|---|---|
+| A | Rectificado + YOLOv8n + clasificador (pipeline final) | **71,2 %** | **78,0 %** | **0,121** | **8,0 %** | 80,7 % (83,1 %) |
+| B | Rectificado + YOLOv8n + solo color | 54,8 % | 58,2 % | 0,121 | 8,0 % | 80,7 % (63,1 %) |
+| C | Recorte por caja + YOLOv8n + clasificador | 63,6 % | 71,8 % | 0,177 | 12,4 % | 73,7 % (82,8 %) |
+| D | Rectificado + YOLO11n + clasificador | 61,4 % | 73,4 % | 0,151 | 8,0 % | 81,0 % (74,2 %) |
+| E | Rectificado + EasyOCR + clasificador | 0,3 % | 0,6 % | 0,899 | 16,4 % | 7,6 % (4,2 %) |
+
+Latencia del pipeline final en CPU (Ryzen AI, media de 20 fotos, segmentación + dígitos en las dos orientaciones + clasificador): 74 ms.
+
+- **Rectificar sirve (A frente a C)**: +7,6 puntos de lectura exacta y +6,2 de m³; el CER baja de 0,177 a 0,121 y las fotos sin lectura de 12,4 % a 8,0 %. Con el recorte por caja, un visor inclinado o vertical llega torcido al detector de dígitos, que se entrenó con visores horizontales.
+- **El clasificador de formato (A frente a B)**: +16,5 puntos de lectura exacta y +19,8 de m³ con los mismos dígitos (el CER es idéntico): todo lo que cambia es dónde va el punto. Sin él, un punto mal puesto cambia los m³ facturados.
+- **YOLOv8n sobre YOLO11n (A frente a D)**: empataban en el test de yfzw4 (mAP50-95 0,687 contra 0,694), pero en CEML YOLOv8n lee mejor (71,2 % contra 61,4 %). Se queda YOLOv8n: la métrica de detección en el dominio de entrenamiento no anticipó la diferencia en las fotos de campo.
+- **EasyOCR no sirve como lector de rodillos (E)**: lee las barras entre rodillos y los números a medio girar (para `00053.25` devuelve `64055837215`). Se probó agrandar el recorte 3 veces y pasarlo a gris en una muestra de 12 fotos, sin mejora. Muestra por qué hace falta un detector entrenado para el dominio.
+- **Confianza como filtro**: el 80,7 % de las lecturas pasa sin revisión y de esas el 83,1 % es exacta; el resto va a revisión manual en la app.
+
 ## Notas
 
 - **B frente a A**: el visor derivado de water-meter-dataset sube el recall en CEML de 0,867 a 0,911 y el mAP50 de 0,858 a 0,937. En Toloka baja algo el mAP50-95 (0,877 → 0,847), esperable porque el visor derivado sigue el contorno de los dígitos y no el marco anotado en Toloka.

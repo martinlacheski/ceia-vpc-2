@@ -51,6 +51,18 @@ def transform_points(points: np.ndarray, matrix: np.ndarray) -> np.ndarray:
     return points @ matrix[:, :2].T + matrix[:, 2]
 
 
+def bbox_crop(image: np.ndarray, polygon: np.ndarray, pad: float = 0.1) -> np.ndarray:
+    """Recorte por la caja alineada a los ejes del visor, sin enderezar (línea de base del
+    experimento rectificar contra recortar). Usa el mismo margen relativo que rectify."""
+    x0, y0 = np.asarray(polygon, dtype=np.float64).min(axis=0)
+    x1, y1 = np.asarray(polygon, dtype=np.float64).max(axis=0)
+    dx, dy = (x1 - x0) * pad, (y1 - y0) * pad
+    height, width = image.shape[:2]
+    left, top = max(0, int(round(x0 - dx))), max(0, int(round(y0 - dy)))
+    right, bottom = min(width, int(round(x1 + dx))), min(height, int(round(y1 + dy)))
+    return image[top:bottom, left:right].copy()
+
+
 def rectify(image: np.ndarray, polygon: np.ndarray, pad: float = 0.1) -> tuple[np.ndarray, np.ndarray]:
     """Devuelve el recorte del visor enderezado y la matriz usada."""
     matrix, (width, height) = rectify_matrix(polygon, pad)

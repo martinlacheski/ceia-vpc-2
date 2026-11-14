@@ -19,7 +19,9 @@ Registro breve de las decisiones técnicas y su motivo. Los resultados numérico
 
 - **YOLOv8n-seg sobre Mask R-CNN** para el visor: en CEML su máscara es más precisa (AP50-95 0,359 contra 0,262), es 21 veces más rápido en CPU y pesa 25 veces menos. La rectificación depende del contorno.
 - **Sin espejado horizontal en dígitos** (`fliplr=0`): un dígito espejado cambia de clase.
-- **YOLOv8n y YOLO11n empatan en dígitos**; se elige por la exactitud de lectura completa en CEML.
+- **YOLOv8n sobre YOLO11n para dígitos**: empatan en el test de yfzw4, pero en CEML YOLOv8n lee mejor (71,2 % contra 61,4 % de lectura exacta). Se decide por la métrica de punta a punta en el dominio real, no por el mAP.
+- **Rectificar el visor** antes de leer: +7,6 puntos de lectura exacta frente al recorte por caja.
+- **EasyOCR descartado** como lector: 0,3 % de lectura exacta en CEML; queda como línea de base.
 - **Orientación del visor**: se lee en las dos orientaciones (0° y 180°); decide la fracción a la derecha y, si no, la confianza del detector.
 
 ## m³ y fracción
