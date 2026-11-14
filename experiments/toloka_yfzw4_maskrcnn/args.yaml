@@ -1,0 +1,9 @@
+arch: maskrcnn_resnet50_fpn
+pretrained: True
+data: data/processed/seg_toloka_yfzw4
+epochs: 10
+batch: 4
+lr: 0.005
+max_side: 640
+fliplr: 0.5
+seed: 0

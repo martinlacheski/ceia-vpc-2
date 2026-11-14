@@ -1,0 +1,23 @@
+{
+  "toloka_test": {
+    "mask_ap50": 0.9997,
+    "mask_ap50_95": 0.8434,
+    "mask_ar100": 0.8679,
+    "box_ap50": 0.9997,
+    "box_ap50_95": 0.8172,
+    "box_ar100": 0.8604,
+    "images": 187
+  },
+  "ceml": {
+    "mask_ap50": 0.8641,
+    "mask_ap50_95": 0.2619,
+    "mask_ar100": 0.4022,
+    "box_ap50": 0.9596,
+    "box_ap50_95": 0.35,
+    "box_ar100": 0.4765,
+    "images": 324
+  },
+  "cpu_latency_ms": 1771.1,
+  "arch": "maskrcnn",
+  "imgsz": null
+}
