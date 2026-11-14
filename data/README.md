@@ -43,3 +43,29 @@ Son **etiquetas derivadas**, no anotaciones originales del visor: siguen el cont
 Las fotos están en `data/ceml/images/`, anonimizadas con `scripts/anonymize_field.py`: nombres neutros (`agua_<AAAA-MM>_r<ruta>_<medidor>.jpg`), sin EXIF y con el lado mayor limitado a 1600 px. `data/ceml/metadata.csv` contiene mes, ruta e identificador de medidor de cada foto. Los originales y la correspondencia cliente → medidor no se publican.
 
 `data/ceml/readings.csv` es la verdad de campo para medir la lectura completa: `reading` es el valor que se ve en la foto, con todos los dígitos y un punto entre los negros (m³) y los rojos (fracción), por ejemplo `00053.25`, `legible` indica si se puede leer, `notes` deja observaciones y `modelo` identifica el modelo de medidor, que fija cuántos dígitos son m³ y cuántos fracción (el nombre termina en `_<dígitos de m³>_<dígitos de fracción>`, por ejemplo `generico_5_2`, `abb_4_3` o `qn15_5_0`; vacío si no se reconoce, y esa foto no se usa para entrenar el clasificador de modelo). Se completa a mano mirando cada foto. `scripts/propose_readings.py` agrega las columnas `propuesta` y `confianza` con lo que lee el pipeline, para acelerar la carga sin tocar las columnas manuales. La propuesta puede sesgar al que verifica: `reading` tiene que salir de la foto, no de copiar la propuesta.
+
+Cómo se armó (noviembre de 2026):
+
+1. El pipeline propuso una lectura para cada foto y una persona la verificó mirando la foto.
+2. En una primera pasada, 262 filas quedaron iguales a la propuesta, sin punto y sin `legible`: se habían copiado como punto de partida. Medir contra ellas habría comparado el modelo consigo mismo, así que se rehicieron mirando cada foto.
+3. Al agregar la columna `modelo` se revisaron las fotos agrupadas por modelo (hojas de contacto) y las que el clasificador predecía distinto; así aparecieron lecturas con el punto corrido, comas en lugar de puntos y un nombre de archivo pisado al editar la planilla.
+
+Convenciones:
+
+- Un punto al final (`2178.`) indica que el medidor tiene fracción pero sus rodillos no se ven o no tienen números; los m³ sí se leen.
+- Los medidores sin rodillos de fracción (5+0, 4+0) van sin punto.
+- `modelo` vacío: no se distingue la marca ni el formato (foto muy movida o sucia).
+
+Modelos más frecuentes y cómo se reconocen:
+
+| `modelo` | Fotos | Rasgos |
+|---|---|---|
+| `generico_5_2` | 141 | Cuerpo blanco, 5 rodillos negros y 2 rojos, "m³" a la derecha |
+| `actaris_4_2` | 80 | Actaris/Unimag ("Indústria Brasileira"), marco redondeado |
+| `azul_4_4` | 31 | Cuerpo azul con ventana ovalada; la fracción es blanca sobre fondo rojo |
+| `qn15_5_0` | 23 | "Qn1.5 H.B", sin rodillos de fracción |
+| `iso4064_4_0` | 17 | "ISO 4064 Class B", marco escalonado, sin fracción |
+| `elster_4_3` | 10 | Logo ELSTER, 3 rodillos rojos |
+| `abb_4_1`, `abb_4_3` | 5 y 6 | "Asea Brown Boveri"; en un modelo 4+3 la fracción es blanca |
+
+El resto (Cyble, SIAP, Aquarius, Elster S120-V y otros) tiene 1 o 2 fotos cada uno.

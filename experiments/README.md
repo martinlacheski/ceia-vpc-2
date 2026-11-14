@@ -47,6 +47,26 @@ El mAP50-95 por dígito va de 0,672 (`1` y `4`) a 0,707 (`5`): no hay un dígito
 
 Primera prueba del pipeline completo sobre 12 fotos CEML al azar (inspección visual, sin lecturas de referencia todavía): los visores nítidos se leen bien salvo los rodillos rojos a mitad de giro; un visor invertido se resolvió con la elección de orientación; las fotos borrosas o empañadas fallan, pero con confianza mínima baja (0,25–0,51 frente a 0,69–0,85), lo que permite marcarlas para revisión manual.
 
+## Etapa 3: formato del medidor (m³ y fracción)
+
+Cada modelo de medidor tiene una cantidad fija de rodillos de m³ (lo que se factura) y de fracción. En las 324 fotos CEML aparecen al menos 15 modelos, con 7 formatos: 5+2 (genérico), 4+2 (Actaris/Unimag), 4+4 (cuerpo azul, fracción blanca sobre fondo rojo), 4+3 (Elster, ABB; en un ABB la fracción es blanca), 4+1 (ABB, SIAP), 5+0 (Qn1.5 H.B, sin fracción) y 4+0 (ISO 4064 Class B, sin fracción), más dos 5+3 aislados. El modelo de cada foto está en la columna `modelo` de `data/ceml/readings.csv`.
+
+**Solo color (`src/meter_reader/color.py`)**: separa los dígitos rojos por el exceso de rojo de cada caja. Acierta si hay fracción y cuántos dígitos son m³ en 206 de 291 fotos (70,8 %). Falla sobre todo por omisión: con humedad, reflejos o poca luz el rojo no se distingue, y no puede separar una fracción blanca.
+
+**Clasificador de formato (`scripts/train_meter_model.py`)**: MobileNetV3-small preentrenada en ImageNet con fine-tuning. La entrada es el visor enderezado con su entorno, en 384 × 192 px (`layout.model_input`), para que se vean el logo, el marco y el "m³". Aumentaciones: giro de 180°, rotación de ±6°, escala, brillo, contraste y desenfoque; en la predicción se promedia la imagen y su giro de 180°. 30 épocas, AdamW con OneCycle (lr 1e-3), pérdida ponderada por clase con suavizado de etiquetas 0,1. Evaluación con validación cruzada estratificada de 5 folds: cada foto se predice con un modelo que no la vio (`oof.csv`). Se excluyen las clases con menos de 5 fotos.
+
+| Experimento | Clases | Fotos | Exactitud | F1 macro | Formato correcto |
+|---|---|---|---|---|---|
+| Solo color (propuesta del pipeline) | — | 291 | — | — | 70,8 % |
+| `meter_layout_mnv3s` (`--target formato`) | 7 formatos | 320 | **98,4 %** | **0,954** | **98,4 %** |
+| `meter_model_mnv3s` (`--target modelo`) | 8 modelos | 313 | 97,8 % | 0,891 | 99,0 % |
+
+La variante por modelo deja afuera 9 fotos de modelos raros (Cyble, SIAP, Aquarius, …), por eso no es directamente comparable; la app usa la variante por formato. Entrenamiento local (Radeon 880M, ROCm): unos 6 minutos los 5 folds más el modelo final.
+
+En la primera corrida (con la planilla sin revisar) la variante por formato daba 95,7 %. Los errores del clasificador marcaron fotos con el modelo mal cargado (4+3 anotados como 4+0, marcas distintas a las anotadas): se revisaron una por una mirando la foto y se corrigieron en la planilla (modelo y, en algunos casos, la lectura).
+
+En el pipeline (`read_meter`), si el clasificador predice con probabilidad ≥ 0,5, su formato decide dónde va el punto (y lo saca en los medidores sin fracción); si duda, decide el color. Limitación: solo conoce los formatos que vio; un modelo nuevo con otra disposición se resuelve por el color.
+
 ## Notas
 
 - **B frente a A**: el visor derivado de water-meter-dataset sube el recall en CEML de 0,867 a 0,911 y el mAP50 de 0,858 a 0,937. En Toloka baja algo el mAP50-95 (0,877 → 0,847), esperable porque el visor derivado sigue el contorno de los dígitos y no el marco anotado en Toloka.
