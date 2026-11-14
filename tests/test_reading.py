@@ -39,3 +39,19 @@ def test_best_orientation_prefers_the_more_confident_reading():
     flipped = assemble_reading(row("9927820", conf=0.3))
     assert best_orientation(upright, flipped) == (upright, False)
     assert best_orientation(flipped, upright) == (upright, True)
+
+
+def test_narrow_spurious_box_at_the_edge_is_discarded():
+    # Caso real (medidor 3): el borde del visor se detectó como un "3" de 81 px frente a ~190 px.
+    digits = [Digit(0, 0.82, 54, 38, 260, 251), Digit(1, 0.85, 201, 41, 391, 251),
+              Digit(2, 0.86, 325, 36, 535, 251), Digit(7, 0.84, 485, 49, 669, 252),
+              Digit(3, 0.87, 627, 40, 807, 253), Digit(3, 0.28, 778, 39, 859, 250)]
+    reading = assemble_reading(digits)
+    assert reading.text == "01273"
+    assert reading.confidence == 0.82
+
+
+def test_rolling_digits_of_normal_width_are_kept():
+    # Un rodillo a mitad de giro ocupa el ancho completo: no se descarta por ancho.
+    digits = row("0034") + [Digit(9, 0.45, 120, 0, 139, 40)]
+    assert assemble_reading(digits).text == "00349"
