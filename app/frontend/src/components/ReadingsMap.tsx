@@ -8,7 +8,7 @@ import { Button } from '../ui/button'
 interface Props {
   readings: Reading[] // solo lecturas con ubicación
   onOpen?: (reading: Reading) => void // sin onOpen, el popup no ofrece abrir la foto
-  height?: number
+  height?: number | string // px o cualquier medida CSS (por ejemplo '36dvh')
 }
 
 // Ajusta la vista para que entren todas las fotos

@@ -4,6 +4,7 @@ import { observation } from '../constants'
 import { formatDate, formatLocation, mapUrl } from '../format'
 import { Alert, AlertDescription } from '../ui/alert'
 import { Button } from '../ui/button'
+import { cn } from '../ui/cn'
 import { Input } from '../ui/input'
 import ObservationBadge from './ObservationBadge'
 import ReadingsMap from './ReadingsMap'
@@ -16,13 +17,13 @@ const RECTIFIED = [
 ] as const
 
 // Imagen procesada: si el backend responde 404 (no existe) se oculta
-function Processed({ readingId, kind, title }: { readingId: number; kind: string; title: string }) {
+function Processed({ readingId, kind, title, imgClassName }: { readingId: number; kind: string; title: string; imgClassName?: string }) {
   const [missing, setMissing] = useState(false)
   if (missing) return null
   return (
     <figure className="flex flex-col gap-1">
       <img
-        className="w-full rounded-md border bg-muted object-contain"
+        className={cn('w-full rounded-md border bg-muted object-contain', imgClassName)}
         src={`/api/readings/${readingId}/images/${kind}`}
         alt={`${title} de la lectura ${readingId}`}
         loading="lazy"
@@ -62,11 +63,17 @@ export default function ReadingModal({
             </DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 lg:grid-cols-2">
-            <img
-              className="max-h-[80dvh] w-full rounded-md border bg-muted object-contain"
-              src={`/api/readings/${reading.id}/photo`}
-              alt={`Foto de la lectura ${reading.id}`}
-            />
+            <figure className="flex min-w-0 flex-col gap-1">
+              {/* En lg la foto no aporta alto propio: toma el de la columna derecha y terminan a la par */}
+              <div className="relative h-[60dvh] lg:h-auto lg:flex-1">
+                <img
+                  className="absolute inset-0 h-full w-full rounded-md border bg-muted object-contain"
+                  src={`/api/readings/${reading.id}/photo`}
+                  alt={`Foto de la lectura ${reading.id}`}
+                />
+              </div>
+              <figcaption className="text-xs text-muted-foreground">Imagen original</figcaption>
+            </figure>
             <div className="flex min-w-0 flex-col gap-4">
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3 text-sm sm:grid-cols-3">
                 <Item label="Lectura final">
@@ -102,10 +109,10 @@ export default function ReadingModal({
                 <ReviewForm key={reading.id} reading={reading} onReviewed={onReviewed} />
               )}
               <div className="grid gap-3 sm:grid-cols-2">
-                <Processed readingId={reading.id} kind="overlay" title="Segmentación del visor" />
+                <Processed readingId={reading.id} kind="overlay" title="Segmentación del visor" imgClassName="h-[36dvh]" />
                 {located ? (
                   <figure className="flex flex-col gap-1">
-                    <ReadingsMap readings={[reading]} height={320} />
+                    <ReadingsMap readings={[reading]} height="36dvh" />
                     <figcaption className="text-xs text-muted-foreground">Lugar donde se tomó la foto</figcaption>
                   </figure>
                 ) : (

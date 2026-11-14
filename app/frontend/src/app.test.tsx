@@ -132,6 +132,7 @@ describe('panel de administración', () => {
     expect(dialog).toHaveAttribute('aria-modal', 'true')
     expect(within(dialog).getByAltText('Foto de la lectura 7')).toHaveAttribute('src', '/api/readings/7/photo')
     expect(within(dialog).getByAltText('Segmentación del visor de la lectura 7')).toBeInTheDocument()
+    expect(within(dialog).getByText('Imagen original')).toBeInTheDocument()
     for (const kind of ['overlay', 'crop', 'digits']) {
       expect(dialog.querySelector(`img[src="/api/readings/7/images/${kind}"]`)).not.toBeNull()
     }
