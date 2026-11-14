@@ -63,18 +63,22 @@ def main() -> None:
     parser.add_argument("--imgsz", type=int, default=640)
     args = parser.parse_args()
 
-    import torch
+    # ultralytics primero: configura los hilos de OpenMP al importarse y eso solo tiene
+    # efecto si torch todavía no está cargado (con el orden inverso, la CPU rinde ~8 veces menos).
     from ultralytics import YOLO
+    import torch
 
     device = 0 if torch.cuda.is_available() else "cpu"
     model = YOLO(str(args.model))
     ceml_yaml = write_ceml_yaml(CEML, Path("runs/val/ceml.yaml"))
     images = sorted((CEML / "images").glob("*.jpg"))[:LATENCY_IMAGES]
 
+    # La latencia se mide antes de validar en GPU, con un modelo recién cargado en CPU.
+    latency = cpu_latency_ms(YOLO(str(args.model)), images, args.imgsz)
     results = {
         "toloka_test": metrics(model, TOLOKA_YAML, "test", args.imgsz, device),
         "ceml": metrics(model, ceml_yaml, "val", args.imgsz, device),
-        "cpu_latency_ms": cpu_latency_ms(model, images, args.imgsz),
+        "cpu_latency_ms": latency,
         "imgsz": args.imgsz,
     }
     out = save_results(results, args.model.stem, Path("experiments"))
