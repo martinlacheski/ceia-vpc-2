@@ -41,3 +41,5 @@ Son **etiquetas derivadas**, no anotaciones originales del visor: siguen el cont
 ## Fotos de campo CEML
 
 Las fotos están en `data/ceml/images/`, anonimizadas con `scripts/anonymize_field.py`: nombres neutros (`agua_<AAAA-MM>_r<ruta>_<medidor>.jpg`), sin EXIF y con el lado mayor limitado a 1600 px. `data/ceml/metadata.csv` contiene mes, ruta e identificador de medidor de cada foto. Los originales y la correspondencia cliente → medidor no se publican.
+
+`data/ceml/readings.csv` es la verdad de campo para medir la lectura completa: `reading` es el valor que se ve en la foto, `legible` indica si se puede leer y `notes` deja observaciones. Se completa a mano mirando cada foto. `scripts/propose_readings.py` agrega las columnas `propuesta` y `confianza` con lo que lee el pipeline, para acelerar la carga sin tocar las columnas manuales. La propuesta puede sesgar al que verifica: `reading` tiene que salir de la foto, no de copiar la propuesta.

@@ -9,6 +9,7 @@ kaggle
 pillow
 pytest
 kagglehub
+pycocotools
 pyyaml
 pandas
 matplotlib

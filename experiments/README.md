@@ -15,9 +15,11 @@ Métricas de máscara; en CEML se evalúan las 324 fotos salvo en E (validación
 | C | B + `imgsz=1024`; 40 épocas | `toloka_yfzw4_yolov8n_seg_1024` | 0,995 / 0,901 | 0,940 / 0,401 | 0,931 | Hecho |
 | D | La mejor + augmentation de condiciones de campo (brillo, desenfoque, ruido) | — | — | — | — | Pendiente |
 | E | La mejor + fine-tuning con CEML (validación cruzada de 5 particiones por `meter_id`) | — | — | — | — | Pendiente |
-| F | Mask R-CNN (ResNet-50) con los datos de la mejor configuración | — | — | — | — | Pendiente |
+| F | Mask R-CNN (ResNet-50 FPN, COCO) con los datos de B, 640 px, 10 épocas | — | — | — | — | En Kaggle (`toloka_yfzw4_maskrcnn`, `scripts/train_maskrcnn.py`) |
 
 Latencia en CPU (Ryzen AI, inferencia completa por imagen, media de 50 fotos CEML): A 24 ms, B 24 ms, C 51 ms. B y C se entrenaron en Kaggle (2× T4); las métricas se recalcularon localmente con `scripts/evaluate_seg.py` y coinciden con las de Kaggle.
+
+**Comparación entre arquitecturas (B contra F).** Ultralytics y torchvision no calculan el mAP exactamente igual, así que las dos se evalúan con `scripts/evaluate_seg_coco.py` (pycocotools, máscaras a resolución completa) y se guarda `eval_coco.json`. Con ese criterio B da en Toloka test 0,9999 / 0,847 de AP50 / AP50-95 de máscara (igual que Ultralytics) y en CEML 0,908 / 0,359 (más bajo que 0,937 / 0,434 porque pycocotools compara máscaras a resolución completa: es más exigente con los bordes). La latencia de las dos se mide en la misma máquina de Kaggle.
 
 ## Etapa 2: detección de dígitos
 
@@ -26,6 +28,7 @@ Dataset: recortes del visor rectificado de water-meter-dataset (`scripts/prepare
 | # | Configuración | Experimento | Test mAP50 / mAP50-95 | Precisión / recall | Estado |
 |---|---|---|---|---|---|
 | D1 | YOLOv8n, 416 px, hasta 100 épocas (paciencia 20) | `digits_yolov8n` | 0,983 / 0,687 | 0,962 / 0,961 | Hecho (Kaggle, 2× T4; paró en la época 91, mejor la 71) |
+| D2 | YOLO11n, mismos hiperparámetros que D1 | `digits_yolo11n` | — | — | En Kaggle |
 
 El mAP50-95 por dígito va de 0,672 (`1` y `4`) a 0,707 (`5`): no hay un dígito claramente más difícil.
 
