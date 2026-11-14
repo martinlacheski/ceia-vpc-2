@@ -1,0 +1,10 @@
+# Con BuildKit este archivo reemplaza al .dockerignore para app/backend/Dockerfile.
+# El contexto es la raíz del repo: se excluye todo salvo lo que el Dockerfile copia.
+*
+!app/backend/requirements.txt
+!app/backend/app
+!app/db
+!src/meter_reader
+!models/*.pt
+!data/ceml
+**/__pycache__

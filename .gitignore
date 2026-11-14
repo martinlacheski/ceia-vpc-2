@@ -46,3 +46,9 @@ AGENTS.md
 .DS_Store
 
 
+
+# App web
+node_modules/
+app/frontend/dist/
+app/data/
+app/frontend/*.tsbuildinfo

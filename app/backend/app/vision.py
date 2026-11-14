@@ -1,0 +1,161 @@
+"""Lector de medidores: adaptador entre la app y el pipeline `meter_reader`.
+
+El lector es una dependencia de FastAPI (`get_reader`) para poder reemplazarlo en los tests.
+Torch, Ultralytics y OpenCV se importan recién al leer la primera foto.
+"""
+
+import sys
+import threading
+from dataclasses import dataclass
+
+from fastapi import Request
+
+from .config import Settings
+
+OVERLAY_MAX_SIDE = 1024
+
+
+@dataclass(frozen=True)
+class ReaderOutput:
+    """Resultado de analizar una foto. Las imágenes son JPEG en bytes (None si no hay visor)."""
+
+    display_found: bool
+    reading: str | None = None
+    confidence: float | None = None
+    flipped: bool = False
+    digits_model_available: bool = True
+    overlay_jpeg: bytes | None = None
+    crop_jpeg: bytes | None = None
+    digits_jpeg: bytes | None = None
+
+
+class MeterReader:
+    """Lector real. Si faltan los pesos de dígitos solo segmenta el visor (modo sin lectura)."""
+
+    def __init__(self, settings: Settings):
+        self.settings = settings
+        self._lock = threading.Lock()  # una inferencia a la vez
+        self._loaded = False
+        self._segment = None
+        self._detect = None
+
+    @property
+    def digits_model_available(self) -> bool:
+        return self.settings.digit_weights.exists()
+
+    def _load(self) -> None:
+        if self._loaded:
+            return
+        src = str(self.settings.src_dir)
+        if src not in sys.path:
+            sys.path.insert(0, src)
+        if self.digits_model_available:
+            from meter_reader.pipeline import load_models
+
+            self._segment, self._detect = load_models(
+                str(self.settings.seg_weights), str(self.settings.digit_weights))
+        else:
+            self._segment = self._load_segmenter_only()
+        self._loaded = True
+
+    def _load_segmenter_only(self):
+        """Segmentador equivalente al de `load_models`, sin exigir los pesos de dígitos."""
+        from ultralytics import YOLO
+
+        model = YOLO(str(self.settings.seg_weights))
+
+        def segment(image):
+            result = model.predict(image, imgsz=640, conf=0.25, verbose=False)[0]
+            if result.masks is None or len(result.masks) == 0:
+                return None
+            return result.masks.xy[int(result.boxes.conf.argmax())]
+
+        return segment
+
+    def analyze(self, photo: bytes) -> ReaderOutput:
+        import cv2
+        import numpy as np
+
+        image = cv2.imdecode(np.frombuffer(photo, np.uint8), cv2.IMREAD_COLOR)
+        if image is None:
+            raise ValueError("no es una imagen")
+        with self._lock:
+            self._load()
+            return self._run(image)
+
+    def _run(self, image) -> ReaderOutput:
+        from meter_reader.pipeline import CROP_PAD, read_meter
+        from meter_reader.rectify import rectify
+
+        available = self._detect is not None
+        if available:
+            result = read_meter(image, self._segment, self._detect)
+            polygon, crop, flipped, reading = result.polygon, result.crop, result.flipped, result.reading
+        else:
+            polygon = self._segment(image)
+            if polygon is not None and len(polygon) < 3:
+                polygon = None
+            crop = rectify(image, polygon, pad=CROP_PAD)[0] if polygon is not None else None
+            flipped, reading = False, None
+
+        if polygon is None or crop is None:
+            return ReaderOutput(display_found=False, digits_model_available=available)
+
+        has_digits = available and reading is not None and bool(reading.text)
+        return ReaderOutput(
+            display_found=True,
+            reading=reading.text if has_digits else None,
+            confidence=round(reading.confidence, 4) if has_digits else None,
+            flipped=flipped,
+            digits_model_available=available,
+            overlay_jpeg=_encode(_draw_overlay(image, polygon)),
+            crop_jpeg=_encode(crop),
+            digits_jpeg=_encode(_draw_digits(crop, reading.digits)) if has_digits else None,
+        )
+
+
+def _encode(image) -> bytes:
+    import cv2
+
+    ok, buffer = cv2.imencode(".jpg", image, [cv2.IMWRITE_JPEG_QUALITY, 85])
+    return buffer.tobytes() if ok else b""
+
+
+def _draw_overlay(image, polygon):
+    """Foto con el polígono del visor resaltado, reducida a OVERLAY_MAX_SIDE."""
+    import cv2
+    import numpy as np
+
+    points = np.asarray(polygon, dtype=np.int32).reshape(-1, 1, 2)
+    canvas = image.copy()
+    filled = canvas.copy()
+    cv2.fillPoly(filled, [points], (0, 200, 0))
+    canvas = cv2.addWeighted(filled, 0.35, canvas, 0.65, 0)
+    thickness = max(2, round(max(image.shape[:2]) / 400))
+    cv2.polylines(canvas, [points], True, (0, 255, 0), thickness)
+    scale = OVERLAY_MAX_SIDE / max(canvas.shape[:2])
+    if scale < 1:
+        canvas = cv2.resize(canvas, None, fx=scale, fy=scale, interpolation=cv2.INTER_AREA)
+    return canvas
+
+
+def _draw_digits(crop, digits):
+    """Recorte con la caja y la clase de cada dígito detectado."""
+    import cv2
+
+    canvas = crop.copy()
+    scale = max(0.4, canvas.shape[0] / 120)
+    for d in digits:
+        p1, p2 = (int(d.x1), int(d.y1)), (int(d.x2), int(d.y2))
+        cv2.rectangle(canvas, p1, p2, (0, 200, 0), 2)
+        cv2.putText(canvas, str(d.value), (p1[0], max(p1[1] - 4, 12)),
+                    cv2.FONT_HERSHEY_SIMPLEX, scale * 0.6, (0, 0, 255), 2, cv2.LINE_AA)
+    return canvas
+
+
+def get_reader(request: Request) -> MeterReader:
+    """Dependencia: lector compartido por todos los pedidos (se crea una sola vez)."""
+    state = request.app.state
+    if getattr(state, "reader", None) is None:
+        state.reader = MeterReader(state.settings)
+    return state.reader

@@ -1,0 +1,83 @@
+# App web de toma de lecturas: base de datos, API con el pipeline de visión y frontend.
+# Uso: docker compose up -d --build  →  http://localhost:8080
+# Usuarios de demo: admin, lector1, lector2 (contraseña DEMO_PASSWORD, por defecto demo1234).
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: lecturas
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lecturas}
+      POSTGRES_DB: lecturas
+    volumes:
+      - db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lecturas -d lecturas"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # Aplica las migraciones de app/db una vez y termina; la API espera a que acabe bien.
+  migrate:
+    build:
+      context: .
+      dockerfile: app/backend/Dockerfile
+    image: lecturas-api
+    command: ["alembic", "-c", "/srv/db/alembic.ini", "upgrade", "head"]
+    environment:
+      DATABASE_URL: postgresql+psycopg://lecturas:${POSTGRES_PASSWORD:-lecturas}@db:5432/lecturas
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: "no"
+
+  # Almacenamiento de objetos (API S3) para las fotos y las imágenes procesadas.
+  storage:
+    image: chrislusf/seaweedfs:3.97@sha256:bb05d66d2963b1cc48073190781c3dd29e2c4c88a2ae2986bf58e38c86d89c6e
+    entrypoint: ["/bin/sh", "/entrypoint.sh"]
+    environment:
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-lecturas-local}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-lecturas-local-secret}
+    volumes:
+      - storage-data:/data
+      - ./app/storage/entrypoint.sh:/entrypoint.sh:ro
+      - ./app/storage/s3.json.template:/etc/seaweedfs/s3.json.template:ro
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:8333/status || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 24
+
+  api:
+    # El contexto es la raíz del repo: la imagen necesita src/, models/ y data/ceml.
+    build:
+      context: .
+      dockerfile: app/backend/Dockerfile
+    image: lecturas-api
+    environment:
+      DATABASE_URL: postgresql+psycopg://lecturas:${POSTGRES_PASSWORD:-lecturas}@db:5432/lecturas
+      SECRET_KEY: ${SECRET_KEY:-solo-para-desarrollo-local}
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-demo1234}
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      S3_ENDPOINT: http://storage:8333
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY:-lecturas-local}
+      S3_SECRET_KEY: ${S3_SECRET_KEY:-lecturas-local-secret}
+      S3_BUCKET: lecturas
+    depends_on:
+      db:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+      storage:
+        condition: service_healthy
+
+  web:
+    build: app/frontend
+    ports:
+      - "${WEB_PORT:-8080}:80"
+    depends_on:
+      - api
+
+volumes:
+  db-data:
+  storage-data:
