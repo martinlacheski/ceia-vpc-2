@@ -35,3 +35,36 @@ def test_collect_copies_best_weights_and_light_artifacts(tmp_path):
     assert (tmp_path / "models" / "demo.pt").read_bytes() == b"best"
     exp = tmp_path / "experiments" / "demo"
     assert sorted(p.name for p in exp.iterdir()) == ["args.yaml", "results.csv", "results.png", "val_batch0_pred.jpg"]
+
+
+def fake_training(monkeypatch, tmp_path):
+    """Reemplaza torch y ultralytics por dobles que registran los argumentos de entrenamiento."""
+    import sys
+    import types
+
+    calls = {}
+
+    class FakeYOLO:
+        def __init__(self, weights):
+            self.trainer = types.SimpleNamespace(save_dir=str(tmp_path / "run"))
+
+        def train(self, **kwargs):
+            calls.update(kwargs)
+
+    torch = types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False))
+    monkeypatch.setitem(sys.modules, "torch", torch)
+    monkeypatch.setitem(sys.modules, "ultralytics", types.SimpleNamespace(YOLO=FakeYOLO))
+    monkeypatch.chdir(tmp_path)
+    return calls
+
+
+def test_train_passes_horizontal_flip_probability(monkeypatch, tmp_path):
+    calls = fake_training(monkeypatch, tmp_path)
+    load_module().train("detect", "yolov8n.pt", "d.yaml", "digits", 1, 416, 8, 5, 42, fliplr=0.0)
+    assert calls["fliplr"] == 0.0
+
+
+def test_train_keeps_ultralytics_default_flip(monkeypatch, tmp_path):
+    calls = fake_training(monkeypatch, tmp_path)
+    load_module().train("segment", "yolov8n-seg.pt", "d.yaml", "seg", 1, 640, 8, 5, 42)
+    assert calls["fliplr"] == 0.5

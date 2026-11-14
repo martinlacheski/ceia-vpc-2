@@ -32,10 +32,15 @@ def collect_artifacts(run_dir: Path, name: str, models_dir: Path, experiments_di
 
 
 def train(task: str, model: str, data: str, name: str, epochs: int, imgsz: int,
-          batch: int, patience: int, seed: int) -> Path:
-    """Entrena con Ultralytics y devuelve la carpeta de la corrida."""
-    import torch  # se importa acá para que los tests no requieran PyTorch
+          batch: int, patience: int, seed: int, fliplr: float = 0.5) -> Path:
+    """Entrena con Ultralytics y devuelve la carpeta de la corrida.
+
+    fliplr: probabilidad de espejado horizontal (0 para dígitos: un 2 espejado parece un 5).
+    """
+    # Se importan acá para que los tests no requieran PyTorch. ultralytics va primero: configura
+    # los hilos de OpenMP al importarse y eso solo tiene efecto si torch todavía no está cargado.
     from ultralytics import YOLO
+    import torch
 
     device = 0 if torch.cuda.is_available() else "cpu"
     # Los pesos preentrenados se descargan en weights/ (ignorado por git).
@@ -45,7 +50,7 @@ def train(task: str, model: str, data: str, name: str, epochs: int, imgsz: int,
     yolo = YOLO(str(weights))
     yolo.train(
         task=task, data=data, epochs=epochs, imgsz=imgsz, batch=batch,
-        patience=patience, seed=seed, device=device,
+        patience=patience, seed=seed, device=device, fliplr=fliplr,
         # Ruta absoluta: con una relativa, Ultralytics la anida dentro de su runs_dir.
         project=str((Path("runs") / task).resolve()), name=name, exist_ok=True,
     )
@@ -78,6 +83,8 @@ def main() -> None:
     parser.add_argument("--batch", type=int, default=16)
     parser.add_argument("--patience", type=int, default=20)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--fliplr", type=float, default=0.5,
+                        help="probabilidad de espejado horizontal; usar 0 para dígitos")
     args = parser.parse_args()
 
     if args.resume:
@@ -86,7 +93,7 @@ def main() -> None:
         if not (args.model and args.data):
             parser.error("--model y --data son obligatorios salvo con --resume")
         run_dir = train(args.task, args.model, args.data, args.name, args.epochs,
-                        args.imgsz, args.batch, args.patience, args.seed)
+                        args.imgsz, args.batch, args.patience, args.seed, args.fliplr)
     collect_artifacts(run_dir, args.name, Path("models"), Path("experiments"))
     print(f"Pesos: models/{args.name}.pt | métricas: experiments/{args.name}/")
 
