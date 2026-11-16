@@ -21,6 +21,8 @@ Guarda:
 
 Uso (con el entorno que tiene torch, por ejemplo .venv-rocm):
   python scripts/train_meter_model.py --name meter_model_mnv3s
+  python scripts/train_meter_model.py --name meter_layout_agua_energia --target formato \
+      --extra-data data/ceml_energia
 """
 
 import argparse
@@ -69,6 +71,11 @@ def load_examples(sheet: Path, images_dir: Path, labels_dir: Path) -> list[dict]
                 continue
             examples.append({"file": row["file"], "model": row["modelo"], "image": model_input(image, polygon)})
     return examples
+
+
+def load_sources(roots: list[Path]) -> list[dict]:
+    """Junta varios conjuntos con la misma estructura: readings.csv, images/ y labels/."""
+    return [e for root in roots for e in load_examples(root / "readings.csv", root / "images", root / "labels")]
 
 
 def target_of(model: str, target: str) -> str:
@@ -177,12 +184,14 @@ def main() -> None:
     parser.add_argument("--sheet", type=Path, default=ROOT / "data/ceml/readings.csv")
     parser.add_argument("--images", type=Path, default=ROOT / "data/ceml/images")
     parser.add_argument("--labels", type=Path, default=ROOT / "data/ceml/labels")
+    parser.add_argument("--extra-data", type=Path, action="append", default=[],
+                        help="otro conjunto (readings.csv, images/, labels/), por ejemplo data/ceml_energia")
     args = parser.parse_args()
 
     import torch
 
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    examples = load_examples(args.sheet, args.images, args.labels)
+    examples = load_examples(args.sheet, args.images, args.labels) + load_sources(args.extra_data)
     labels = [target_of(e["model"], args.target) for e in examples]
     classes = trainable_classes(labels, args.min_samples)
     used = [i for i, label in enumerate(labels) if label in classes]

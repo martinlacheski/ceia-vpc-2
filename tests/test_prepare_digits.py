@@ -66,3 +66,37 @@ def test_skips_images_with_few_digits_and_writes_data_yaml(tmp_path):
     yaml = (out / "data.yaml").read_text()
     assert f"path: {out.resolve()}" in yaml
     assert "names:" in yaml and "'9'" in yaml
+
+
+def run_many(sources: list[Path], out: Path) -> None:
+    cmd = [sys.executable, str(SCRIPT), "--out", str(out)]
+    for src in sources:
+        cmd += ["--src", str(src)]
+    subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+
+def test_maps_classes_by_name_and_drops_non_digit_classes(tmp_path):
+    # Dataset con clases extra: '.' (id 0) y 'kWh' (id 11); los dígitos van de 1 a 10.
+    src = make_yfzw4(tmp_path / "lcd")
+    label = src / "train" / "labels" / "m.txt"
+    lines = [f"{int(l.split()[0]) + 1} {' '.join(l.split()[1:])}" for l in label.read_text().splitlines()]
+    lines.append("0 " + " ".join(f"{v:.6f}" for v in quad(260, 160, 20.0, 2, 2)))   # el punto
+    lines.append("11 " + " ".join(f"{v:.6f}" for v in quad(380, 290, 0.0, 15, 8)))  # 'kWh' lejos del visor
+    label.write_text("\n".join(lines) + "\n")
+    names = ["."] + [str(i) for i in range(10)] + ["kWh"]
+    (src / "data.yaml").write_text("names:\n" + "".join(f"- '{n}'\n" for n in names))
+
+    out = tmp_path / "out"
+    run(src, out)
+    rows = [list(map(float, l.split())) for l in (out / "labels" / "train" / "m.txt").read_text().splitlines()]
+    rows.sort(key=lambda r: r[1])
+    assert [int(r[0]) for r in rows] == [0, 1, 2, 3, 4, 5]  # sin '.' ni 'kWh'
+    crop = Image.open(out / "images" / "train" / "m.jpg")
+    assert crop.width > 2 * crop.height  # el visor no se estiró hasta la caja de 'kWh'
+
+
+def test_several_sources_go_to_one_dataset_with_prefixed_names(tmp_path):
+    out = tmp_path / "out"
+    run_many([make_yfzw4(tmp_path / "agua"), make_yfzw4(tmp_path / "lcd")], out)
+    assert sorted(p.name for p in (out / "images" / "train").glob("*.jpg")) == ["agua_m.jpg", "lcd_m.jpg"]
+    assert sorted(p.name for p in (out / "labels" / "train").glob("*.txt")) == ["agua_m.txt", "lcd_m.txt"]
