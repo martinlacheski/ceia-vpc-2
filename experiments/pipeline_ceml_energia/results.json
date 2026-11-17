@@ -1,0 +1,58 @@
+{
+  "A": {
+    "configuracion": "rectificado + YOLOv8n + clasificador",
+    "fotos": 201,
+    "fotos_fraccion_legible": 201,
+    "exacta": 0.6667,
+    "m3_exactos": 0.791,
+    "cer": 0.0818,
+    "sin_lectura": 0.0,
+    "cobertura_confianza": 0.8806,
+    "exacta_con_confianza": 0.7401
+  },
+  "B": {
+    "configuracion": "rectificado + YOLOv8n + color",
+    "fotos": 201,
+    "fotos_fraccion_legible": 201,
+    "exacta": 0.0299,
+    "m3_exactos": 0.0547,
+    "cer": 0.0818,
+    "sin_lectura": 0.0,
+    "cobertura_confianza": 0.8806,
+    "exacta_con_confianza": 0.0339
+  },
+  "C": {
+    "configuracion": "caja + YOLOv8n + clasificador",
+    "fotos": 201,
+    "fotos_fraccion_legible": 201,
+    "exacta": 0.5174,
+    "m3_exactos": 0.6219,
+    "cer": 0.2259,
+    "sin_lectura": 0.0498,
+    "cobertura_confianza": 0.6667,
+    "exacta_con_confianza": 0.709
+  },
+  "D": {
+    "configuracion": "rectificado + YOLO11n + clasificador",
+    "fotos": 201,
+    "fotos_fraccion_legible": 201,
+    "exacta": 0.2189,
+    "m3_exactos": 0.3483,
+    "cer": 0.4463,
+    "sin_lectura": 0.0348,
+    "cobertura_confianza": 0.3682,
+    "exacta_con_confianza": 0.527
+  },
+  "E": {
+    "configuracion": "rectificado + EasyOCR + clasificador",
+    "fotos": 201,
+    "fotos_fraccion_legible": 201,
+    "exacta": 0.0299,
+    "m3_exactos": 0.0846,
+    "cer": 0.5771,
+    "sin_lectura": 0.1194,
+    "cobertura_confianza": 0.3035,
+    "exacta_con_confianza": 0.0984
+  },
+  "latencia_cpu_ms": 60.6
+}

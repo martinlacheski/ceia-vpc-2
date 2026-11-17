@@ -26,7 +26,8 @@ Uso (con el entorno que tiene ultralytics, torch y easyocr, por ejemplo .venv-ro
   python scripts/evaluate_pipeline.py
   python scripts/evaluate_pipeline.py --no-flip --sheet data/ceml_energia/readings.csv \
       --images data/ceml_energia/images --seg-weights models/toloka_yfzw4_energia_yolov8n_seg.pt \
-      --digits-v8 models/digits_mix_yolov8n.pt --classifier meter_layout_agua_energia
+      --digits-v8 models/digits_mix_energia_yolov8n.pt --classifier meter_layout_agua_energia \
+      --out experiments/pipeline_ceml_energia
 """
 
 import argparse
