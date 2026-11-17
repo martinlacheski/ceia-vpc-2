@@ -79,11 +79,11 @@ Fuentes, versiones, licencias y cómo se armó cada conjunto: [data/README.md](d
 ```bash
 python -m venv .venv
 source .venv/bin/activate
-pip install -r requirements.txt
-pytest                      # tests del pipeline y de los scripts
+pip install -r requirements-lock.txt   # entorno exacto verificado (torch CPU)
+pytest                      # tests del pipeline, de los scripts y de la API
 ```
 
-Las versiones de `requirements.txt` son las usadas para obtener los resultados (Python 3.12). Para GPU AMD (ROCm) o solo CPU, conviene instalar antes `torch` y `torchvision` desde el índice de PyTorch que corresponda.
+`requirements-lock.txt` fija todas las dependencias, también las indirectas, con las versiones con las que se verificó la reproducción (Python 3.12, Linux, torch para CPU). `requirements.txt` lista solo las dependencias directas de la investigación y `app/backend/requirements-dev.txt`, las de la API y sus tests. Para entrenar con GPU, instalar `torch` y `torchvision` desde el índice de PyTorch que corresponda (CUDA o ROCm) y después `pip install -r requirements.txt -r app/backend/requirements-dev.txt`.
 
 ## Reproducir los resultados
 
@@ -94,6 +94,22 @@ Los pesos ya están en `models/`, así que para ver los resultados alcanza con a
 3. **Segmentación del visor y dígitos**: `notebooks/02_entrenamiento.ipynb` en Kaggle o Colab (GPU), o `scripts/train_yolo.py` y `scripts/train_maskrcnn.py` en local. Se evalúan con `scripts/evaluate_seg.py` y `scripts/evaluate_seg_coco.py`.
 4. **Clasificador de formato**: `python scripts/train_meter_model.py --target formato --name meter_layout_mnv3s` para agua y `--name meter_layout_agua_energia --extra-data data/ceml_energia` para agua y energía (validación cruzada de 5 folds y modelo final).
 5. **Punta a punta**: `python scripts/evaluate_pipeline.py` (agua, guarda `experiments/pipeline_ceml/`) y, para energía, con `--no-flip` y los modelos de energía (comando completo en el docstring del script; guarda `experiments/pipeline_ceml_energia/`).
+
+Los notebooks se pueden ejecutar desde la terminal con `jupyter nbconvert --to notebook --execute --inplace notebooks/03_resultados.ipynb`.
+
+### Verificación de la reproducibilidad
+
+Se verificó desde un clon limpio del repositorio, con un entorno nuevo instalado desde `requirements-lock.txt` y sin GPU:
+
+| Qué | Resultado |
+|---|---|
+| `pytest` | 171 tests pasan |
+| `notebooks/01_eda.ipynb` (con los datos descargados por `download_data.py`) | misma salida en todas las celdas |
+| `notebooks/03_resultados.ipynb` | misma salida en todas las celdas, incluidas las validaciones que se calculan en vivo (1,5 min en CPU) |
+| `evaluate_pipeline.py`, agua y energía | mismas predicciones foto por foto en las configuraciones A–D. Cambian la latencia (depende de la máquina) y algunas lecturas de la referencia EasyOCR (E), cuyos pesos se descargan aparte y no están versionados; su exactitud no cambia |
+| `prepare_toloka.py`, `prepare_seg_combined.py`, `prepare_digits.py` | splits y etiquetas idénticos |
+| `train_yolo.py` (1 época, prueba de humo) | entrena y guarda pesos y métricas. Un entrenamiento completo en GPU no es idéntico bit a bit entre corridas (operaciones no deterministas de CUDA/ROCm), por eso los resultados se reportan con los pesos versionados en `models/` |
+| App web (`docker compose up -d --build` y `python scripts/smoke_app.py`) | login, análisis de la foto de ejemplo, lectura confirmada e imágenes guardadas, para agua y energía |
 
 ## App web de toma de lecturas
 

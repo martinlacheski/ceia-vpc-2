@@ -16,3 +16,4 @@ roboflow==1.7.3
 kagglehub==1.0.3
 pytest==9.2.0
 ipykernel==7.4.0
+nbconvert==7.17.2
