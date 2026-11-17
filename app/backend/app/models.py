@@ -37,6 +37,7 @@ class Meter(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True)
     code: Mapped[str] = mapped_column(String(50), unique=True)
+    service: Mapped[str] = mapped_column(String(10), default="water", server_default="water")  # "water" | "energy"
     address: Mapped[str] = mapped_column(String(200))
     lat: Mapped[float] = mapped_column(Float)  # coordenadas ficticias (ver seed.py)
     lon: Mapped[float] = mapped_column(Float)

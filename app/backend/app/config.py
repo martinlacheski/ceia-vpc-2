@@ -24,6 +24,12 @@ class Settings:
     digit_weights: Path = REPO_ROOT / "models" / "digits_yolov8n.pt"
     # Clasificador del modelo de medidor (dónde va el punto); si falta, decide el color
     meter_model_weights: Path = REPO_ROOT / "models" / "meter_layout_mnv3s.pt"
+    # Medidores de energía: fotos propias y modelos entrenados con energía. Se leen sin probar el
+    # visor girado 180° (están en pared o pilar y se fotografían derechos).
+    ceml_energy_dir: Path = REPO_ROOT / "data" / "ceml_energia"
+    energy_seg_weights: Path = REPO_ROOT / "models" / "toloka_yfzw4_energia_yolov8n_seg.pt"
+    energy_digit_weights: Path = REPO_ROOT / "models" / "digits_mix_energia_yolov8n.pt"
+    energy_meter_model_weights: Path = REPO_ROOT / "models" / "meter_layout_agua_energia.pt"
     # Solo demo: cambiar SECRET_KEY y DEMO_PASSWORD en cualquier despliegue público.
     # Almacenamiento S3 (SeaweedFS en compose). Sin endpoint se usa el disco (data_dir).
     s3_endpoint: str | None = None
@@ -48,6 +54,11 @@ class Settings:
             seg_weights=Path(env("SEG_WEIGHTS", str(defaults.seg_weights))),
             digit_weights=Path(env("DIGIT_WEIGHTS", str(defaults.digit_weights))),
             meter_model_weights=Path(env("METER_MODEL_WEIGHTS", str(defaults.meter_model_weights))),
+            ceml_energy_dir=Path(env("CEML_ENERGY_DIR", str(defaults.ceml_energy_dir))),
+            energy_seg_weights=Path(env("ENERGY_SEG_WEIGHTS", str(defaults.energy_seg_weights))),
+            energy_digit_weights=Path(env("ENERGY_DIGIT_WEIGHTS", str(defaults.energy_digit_weights))),
+            energy_meter_model_weights=Path(env("ENERGY_METER_MODEL_WEIGHTS",
+                                                str(defaults.energy_meter_model_weights))),
             s3_endpoint=env("S3_ENDPOINT") or None,
             s3_access_key=env("S3_ACCESS_KEY", defaults.s3_access_key),
             s3_secret_key=env("S3_SECRET_KEY", defaults.s3_secret_key),
@@ -56,3 +67,13 @@ class Settings:
             demo_password=env("DEMO_PASSWORD", defaults.demo_password),
             cookie_secure=_flag("COOKIE_SECURE"),
         )
+
+    def photos_dir(self, service: str) -> Path:
+        """Carpeta CEML (metadata.csv + images/) del servicio: "water" o "energy"."""
+        return self.ceml_energy_dir if service == "energy" else self.ceml_dir
+
+    def weights(self, service: str) -> tuple[Path, Path, Path]:
+        """(segmentador, detector de dígitos, clasificador del modelo de medidor) del servicio."""
+        if service == "energy":
+            return self.energy_seg_weights, self.energy_digit_weights, self.energy_meter_model_weights
+        return self.seg_weights, self.digit_weights, self.meter_model_weights

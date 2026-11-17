@@ -43,7 +43,7 @@ def analyze(photo: UploadFile = File(...), meter: Meter = Depends(accessible_met
     if len(data) > settings.max_upload_bytes:
         raise HTTPException(413, "La foto es demasiado grande")
     try:
-        output = reader.analyze(data)
+        output = reader.analyze(data, meter.service)
     except ValueError:
         raise HTTPException(422, "La foto no es una imagen válida")
 

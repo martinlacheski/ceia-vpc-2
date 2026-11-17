@@ -22,6 +22,12 @@ agua_2019-01_r80_m0002.jpg,2019-01,80,m0002
 agua_2019-01_r90_m0003.jpg,2019-01,90,m0003
 """
 
+# Energía: el m0001 repite el id de un medidor de agua (pasa en CEML); la ruta 7 no se siembra.
+ENERGY_METADATA = """file,month,route,meter_id
+energia_2019-02_r1_m0001.jpg,2019-02,1,m0001
+energia_2019-03_r7_m0050.jpg,2019-03,7,m0050
+"""
+
 
 class FakeReader:
     """Lector falso: devuelve la salida configurada sin usar modelos."""
@@ -33,9 +39,11 @@ class FakeReader:
             digits_jpeg=b"digits",
         )
         self.calls = 0
+        self.services: list[str] = []
 
-    def analyze(self, photo: bytes) -> ReaderOutput:
+    def analyze(self, photo: bytes, service: str = "water") -> ReaderOutput:
         self.calls += 1
+        self.services.append(service)
         return self.output
 
 
@@ -47,12 +55,18 @@ def settings(tmp_path):
     for name in ("agua_2019-02_r80_m0001.jpg", "agua_2019-01_r80_m0001.jpg",
                  "agua_2019-01_r80_m0002.jpg", "agua_2019-01_r90_m0003.jpg"):
         cv2.imwrite(str(ceml / "images" / name), np.full((20, 30, 3), 120, np.uint8))
+    energy = tmp_path / "ceml_energia"
+    (energy / "images").mkdir(parents=True)
+    (energy / "metadata.csv").write_text(ENERGY_METADATA)
+    for name in ("energia_2019-02_r1_m0001.jpg", "energia_2019-03_r7_m0050.jpg"):
+        cv2.imwrite(str(energy / "images" / name), np.full((20, 30, 3), 200, np.uint8))
     database_url = f"sqlite:///{tmp_path / 'test.db'}"
     migrate(database_url)  # el esquema lo crea Alembic, no la API
     return Settings(
         database_url=database_url,
         data_dir=tmp_path / "data",
         ceml_dir=ceml,
+        ceml_energy_dir=energy,
         secret_key="test-secret",
         demo_password="demo1234",
     )

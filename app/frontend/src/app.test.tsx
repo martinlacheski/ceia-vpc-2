@@ -53,9 +53,9 @@ describe('vista de ruta', () => {
       },
       'GET /api/routes/1/meters': {
         json: [
-          { id: 10, code: 'M-010', address: 'Calle 1', lat: -34.6, lon: -58.4, status: 'pending', last_reading: null },
+          { id: 10, code: 'M-010', service: 'water', address: 'Calle 1', lat: -34.6, lon: -58.4, status: 'pending', last_reading: null },
           {
-            id: 11, code: 'M-011', address: 'Calle 2', lat: -34.61, lon: -58.41, status: 'read',
+            id: 11, code: 'E-M-011', service: 'energy', address: 'Calle 2', lat: -34.61, lon: -58.41, status: 'read',
             last_reading: { value: '01234', taken_at: '2026-01-01T10:00:00Z' },
           },
         ],
@@ -66,6 +66,9 @@ describe('vista de ruta', () => {
     expect(screen.getByText('Pendiente')).toBeInTheDocument()
     expect(screen.getByText('Leído')).toBeInTheDocument()
     expect(screen.getByText(/01234/)).toBeInTheDocument()
+    // cada medidor muestra su servicio
+    expect(screen.getByText('Agua')).toBeInTheDocument()
+    expect(screen.getByText('Energía')).toBeInTheDocument()
   })
 
   it('no ofrece mapa de medidores: solo el listado', async () => {
@@ -73,7 +76,7 @@ describe('vista de ruta', () => {
       'GET /api/auth/me': { json: reader },
       'GET /api/routes': { json: [{ id: 1, name: 'Ruta Norte', assignee: { id: 2, full_name: 'Ana Lectora' }, meters_total: 1, meters_read: 0 }] },
       'GET /api/routes/1/meters': {
-        json: [{ id: 10, code: 'M-010', address: 'Calle 1', lat: -34.6, lon: -58.4, status: 'pending', last_reading: null }],
+        json: [{ id: 10, code: 'M-010', service: 'water', address: 'Calle 1', lat: -34.6, lon: -58.4, status: 'pending', last_reading: null }],
       },
     })
     renderApp('/routes/1')
@@ -285,7 +288,7 @@ describe('panel de administración', () => {
 
 describe('tomar lectura', () => {
   const meter = {
-    id: 5, code: 'M-005', address: 'Av. Siempreviva 742', lat: -34.6, lon: -58.4,
+    id: 5, code: 'M-005', service: 'energy', address: 'Av. Siempreviva 742', lat: -34.6, lon: -58.4,
     route_id: 1, status: 'pending', last_reading: null, has_sample_photo: false,
   }
   const analysis = {
@@ -336,6 +339,16 @@ describe('tomar lectura', () => {
     await user.click(screen.getByRole('button', { name: 'Confirmar lectura' }))
     return user
   }
+
+  it('muestra el servicio del medidor', async () => {
+    mockApi({
+      'GET /api/auth/me': { json: reader },
+      'GET /api/meters/5': { json: meter },
+    })
+    renderApp('/meters/5/read')
+    expect(await screen.findByText('M-005')).toBeInTheDocument()
+    expect(screen.getByText('Energía')).toBeInTheDocument()
+  })
 
   it('envía el valor editado con coordenadas si hay geolocalización', async () => {
     const calls = mockApi({

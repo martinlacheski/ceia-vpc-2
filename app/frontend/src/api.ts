@@ -20,9 +20,14 @@ export interface LastReading {
   taken_at: string
 }
 
+export type Service = 'water' | 'energy'
+
+export const SERVICE_LABEL: Record<Service, string> = { water: 'Agua', energy: 'Energía' }
+
 export interface MeterItem {
   id: number
   code: string
+  service: Service
   address: string
   lat: number
   lon: number
