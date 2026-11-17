@@ -1,18 +1,19 @@
-"""Anonimiza las fotos de campo de medidores de agua.
+"""Anonimiza las fotos de campo de medidores (agua o energía).
 
-Copia las fotos de toma_estado/ a data/ceml/images/ con nombres neutros
+Copia las fotos de toma_estado/ a <destino>/images/ con nombres neutros
 y sin metadatos EXIF. El nombre del cliente se reemplaza por un identificador
 de medidor (m0001, m0002, ...) estable entre meses, para poder agrupar las
 fotos del mismo medidor al armar los splits sin filtrar datos personales.
 
 Salidas:
-  - data/ceml/images/agua_<AAAA-MM>_r<ruta>_<medidor>.jpg
-  - data/ceml/metadata.csv  (sin datos personales, se puede compartir)
+  - <destino>/images/<prefijo>_<AAAA-MM>_r<ruta>_<medidor>.jpg  (prefijo: agua o energia)
+  - <destino>/metadata.csv  (sin datos personales, se puede compartir)
   - <origen>/mapa_anonimizacion.csv  (privado: cliente -> medidor, no subir)
 
 Uso:
   python scripts/anonymize_field.py
   python scripts/anonymize_field.py --src "toma_estado/AGUA EL ALCAZAR (PEPE)" --dst data/ceml
+  python scripts/anonymize_field.py --src "toma_estado/ENERGIA ROJAS" --dst data/ceml_energia --prefix energia
 """
 
 import argparse
@@ -23,7 +24,15 @@ from pathlib import Path
 from PIL import Image, ImageOps
 
 MONTH_RE = re.compile(r"^(\d{2})-(\d{4})$")
+# Carpetas de ruta sueltas, sin carpeta de mes: "RUTA 7 (12-2019)"
+FOLDER_MONTH_RE = re.compile(r"\((\d{2})-(\d{4})\)")
 ROUTE_RE = re.compile(r"RUTAS?\s*(\d+)", re.IGNORECASE)
+# El cliente termina donde empieza la ruta. En agua se conserva la regla original (" - RUTA"):
+# cambiarla movería los identificadores m0001... de las fotos ya publicadas en data/ceml.
+WATER_CUSTOMER_END_RE = re.compile(r"\s+-\s+RUTA", re.IGNORECASE)
+# En energía los separadores son irregulares:
+# "X - RUTA 8", "X -RUTA 8", "X- RUTA 8", "X RUTA 8", "X RUTA8" o "X - 8".
+CUSTOMER_END_RE = re.compile(r"[\s.]*(?:-\s*)?\bRUTAS?(?![A-ZÑ])|\s+-\s*\d", re.IGNORECASE)
 MAX_SIDE = 1600
 
 # Fotos descartadas: el auto-etiquetado (SAM 3) no detectó el visor.
@@ -38,32 +47,38 @@ EXCLUDED = {
 }
 
 
-def parse_photo(path: Path, src: Path) -> dict:
+def parse_photo(path: Path, src: Path, customer_end: re.Pattern = WATER_CUSTOMER_END_RE) -> dict:
     """Extrae mes, ruta y cliente a partir de la ruta del archivo."""
     rel = path.relative_to(src)
     # El mes se toma de la carpeta de primer nivel (MM-AAAA); las subcarpetas
     # a veces tienen fechas inconsistentes.
-    month_match = MONTH_RE.match(rel.parts[0])
+    month_match = MONTH_RE.match(rel.parts[0]) or FOLDER_MONTH_RE.search(rel.parts[0])
     month = f"{month_match[2]}-{month_match[1]}" if month_match else "unknown"
     route_match = ROUTE_RE.search(str(rel))
     route = route_match[1] if route_match else "0"
-    # El cliente es la parte del nombre de archivo antes de " - RUTA".
-    customer = re.split(r"\s+-\s+RUTA", path.stem, flags=re.IGNORECASE)[0]
+    # El cliente es la parte del nombre de archivo antes de la ruta.
+    customer = customer_end.split(path.stem, maxsplit=1)[0]
     customer = " ".join(customer.upper().split())
     return {"path": path, "month": month, "route": route, "customer": customer}
+
+
+def photo_name(prefix: str, month: str, route: str, meter: str) -> str:
+    return f"{prefix}_{month}_r{route}_{meter}.jpg"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--src", type=Path, default=Path("toma_estado/AGUA EL ALCAZAR (PEPE)"))
     parser.add_argument("--dst", type=Path, default=Path("data/ceml"))
+    parser.add_argument("--prefix", default="agua", help="tipo de medidor en el nombre: agua o energia")
     args = parser.parse_args()
 
     photos = sorted(
         (p for p in args.src.rglob("*") if p.suffix.lower() in {".jpg", ".jpeg"}),
         key=lambda p: str(p).lower(),
     )
-    records = [parse_photo(p, args.src) for p in photos]
+    customer_end = WATER_CUSTOMER_END_RE if args.prefix == "agua" else CUSTOMER_END_RE
+    records = [parse_photo(p, args.src, customer_end) for p in photos]
 
     # Identificador de medidor estable: orden alfabético de clientes.
     customers = sorted({r["customer"] for r in records})
@@ -76,8 +91,8 @@ def main() -> None:
     rows = []
     for r in records:
         meter = meter_ids[r["customer"]]
-        base = f"agua_{r['month']}_r{r['route']}_{meter}"
-        name, n = f"{base}.jpg", 1
+        name, n = photo_name(args.prefix, r["month"], r["route"], meter), 1
+        base = name.removesuffix(".jpg")
         while name in used_names:  # mismo medidor repetido en el mismo mes
             n += 1
             name = f"{base}_{n}.jpg"

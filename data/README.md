@@ -69,3 +69,18 @@ Modelos más frecuentes y cómo se reconocen:
 | `abb_4_1`, `abb_4_3` | 5 y 6 | "Asea Brown Boveri"; en un modelo 4+3 la fracción es blanca |
 
 El resto (Cyble, SIAP, Aquarius, Elster S120-V y otros) tiene 1 o 2 fotos cada uno.
+
+## Fotos de campo CEML de energía
+
+`data/ceml_energia/` tiene 788 fotos de medidores de energía (rodillos y LCD), anonimizadas con el mismo criterio que las de agua. Es una extensión del trabajo: el eje sigue siendo agua.
+
+- `readings.csv`: `muestra=si` marca las 201 fotos de la **muestra de prueba** (100 LCD y 101 de rodillos), con la lectura verificada a mano. Se usan solo para evaluar de punta a punta (`scripts/evaluate_pipeline.py --no-flip`) y nunca para entrenar. `tipo` es `lcd` o `rodillos`; `modelo` termina en `_<dígitos enteros>_<dígitos de fracción>` (por ejemplo `elster_a100_6_1`).
+- `labels/` y `annotations.coco.json`: polígono del visor. Auto-etiquetado con SAM 3 en Roboflow, uniendo los polígonos de cada foto en su envolvente convexa (`scripts/import_ceml_labels.py --merge`) y revisado a mano.
+- `digits/`: visor enderezado de las fotos fuera de la muestra, con una caja por dígito de la lectura. Cómo se armó:
+  1. `scripts/export_digit_prelabels.py` recortó el visor con el polígono revisado y propuso las cajas con el detector `digits_mix_yolov8n`.
+  2. Se corrigieron en Roboflow (proyecto privado) y se importaron con `scripts/import_digit_labels.py`.
+  3. Se descartaron 83 recortes cuya cantidad de cajas no coincide con el formato del modelo de medidor (fotos ilegibles, fracción sin caja o indicadores marcados como dígito).
+  4. Los 499 restantes se revisaron con un modelo de lenguaje visual sobre hojas de contacto: 190 correctos, 28 con algún número corregido y 281 marcados `ilegible` (algún dígito borroso o a medio girar). Las 10 correcciones controladas a mano estaban bien; el criterio de `ilegible` resultó más estricto que el de una persona.
+- `digits/revision.csv`: resultado de esa revisión por recorte (`estado`: `ok`, `corregida` o `ilegible`; `etiqueta_roboflow` y `lectura` de izquierda a derecha).
+
+`scripts/prepare_digits.py --crops data/ceml_energia` suma estos recortes al dataset de dígitos sin las fotos de los medidores de la muestra, dividido por medidor (`metadata.csv`); con `--skip-unreadable` deja afuera los marcados `ilegible`.

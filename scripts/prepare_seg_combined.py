@@ -9,15 +9,20 @@ Reglas:
     (con menos, el rectángulo quedaría corto);
   - todas las imágenes de yfzw4 van a train; val y test son los de Toloka, para
     que los resultados sean comparables con el entrenamiento solo con Toloka;
-  - se descartan imágenes de yfzw4 casi idénticas a alguna de val/test de Toloka.
+  - se descartan imágenes de yfzw4 casi idénticas a alguna de val/test de Toloka;
+  - con --extra se suman a train otros conjuntos con el visor etiquetado a mano
+    (readings.csv, images/, labels/; por ejemplo data/ceml_energia). Las fotos con
+    muestra=si en readings.csv quedan afuera: son el test de punta a punta.
 
 Requiere haber corrido antes scripts/prepare_toloka.py.
 
 Uso:
   python scripts/prepare_seg_combined.py
+  python scripts/prepare_seg_combined.py --extra data/ceml_energia --out data/processed/seg_toloka_yfzw4_energia
 """
 
 import argparse
+import csv
 import os
 import shutil
 from pathlib import Path
@@ -79,11 +84,28 @@ def link_or_copy(src: Path, dst: Path) -> None:
         shutil.copy2(src, dst)
 
 
+def add_extra(root: Path, train_images: Path, train_labels: Path) -> int:
+    """Suma a train las fotos etiquetadas de root, salvo la muestra de test. Devuelve cuántas."""
+    with (root / "readings.csv").open(newline="", encoding="utf-8") as f:
+        rows = [r for r in csv.DictReader(f) if r.get("muestra", "").strip().lower() != "si"]
+    added = 0
+    for row in rows:
+        label = root / "labels" / f"{Path(row['file']).stem}.txt"
+        if not label.exists():
+            continue
+        link_or_copy(root / "images" / row["file"], train_images / row["file"])
+        shutil.copy2(label, train_labels / label.name)
+        added += 1
+    return added
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--toloka", type=Path, default=Path("data/processed/toloka_seg"))
     parser.add_argument("--yfzw4", type=Path, default=Path("data/raw/roboflow_water_meter"))
     parser.add_argument("--out", type=Path, default=Path("data/processed/seg_toloka_yfzw4"))
+    parser.add_argument("--extra", type=Path, action="append", default=[],
+                        help="conjunto con readings.csv, images/ y labels/ que se suma a train (repetible)")
     args = parser.parse_args()
 
     for sub in ("images", "labels"):
@@ -118,6 +140,11 @@ def main() -> None:
         coords = " ".join(f"{v:.6g}" for v in polygon)
         (args.out / "labels" / "train" / f"{name}.txt").write_text(f"0 {coords}\n", encoding="utf-8")
         added += 1
+
+    # 3. Conjuntos extra con el visor etiquetado a mano (sin la muestra de test).
+    for root in args.extra:
+        n = add_extra(root, args.out / "images" / "train", args.out / "labels" / "train")
+        print(f"{root.name}: {n} fotos agregadas a train")
 
     # Ruta absoluta: Ultralytics resuelve las relativas contra su propio directorio de datasets.
     (args.out / "data.yaml").write_text(

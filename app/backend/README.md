@@ -37,12 +37,19 @@ interactiva en `http://localhost:8000/docs`. Los tests no necesitan torch ni ult
 | `CEML_DIR` | `<repo>/data/ceml` | `metadata.csv` e `images/` de CEML (solo lectura) |
 | `SEG_WEIGHTS` | `<repo>/models/toloka_yfzw4_yolov8n_seg.pt` | Pesos de segmentación del visor |
 | `DIGIT_WEIGHTS` | `<repo>/models/digits_yolov8n.pt` | Pesos del detector de dígitos |
+| `METER_MODEL_WEIGHTS` | `<repo>/models/meter_layout_mnv3s.pt` | Clasificador del modelo de medidor (dónde va el punto) |
+| `CEML_ENERGY_DIR` | `<repo>/data/ceml_energia` | `metadata.csv` e `images/` de los medidores de energía |
+| `ENERGY_SEG_WEIGHTS` | `<repo>/models/toloka_yfzw4_energia_yolov8n_seg.pt` | Segmentador para medidores de energía |
+| `ENERGY_DIGIT_WEIGHTS` | `<repo>/models/digits_mix_energia_yolov8n.pt` | Detector de dígitos para energía |
+| `ENERGY_METER_MODEL_WEIGHTS` | `<repo>/models/meter_layout_agua_energia.pt` | Clasificador del modelo de medidor para energía |
 | `METER_READER_SRC` | `<repo>/src` | Carpeta que contiene el paquete `meter_reader` |
 
 ## Datos de demo
 
 Al arrancar (con el esquema ya migrado) se cargan (de forma idempotente) las rutas y medidores a partir
-de `data/ceml/metadata.csv`: "Ruta 80" y "Ruta 90", un medidor por `meter_id`. Las direcciones y
+de `data/ceml/metadata.csv` (agua: "Ruta 80" y "Ruta 90") y de `data/ceml_energia/metadata.csv`
+(energía: "Ruta 1 (energía)"), un medidor por `meter_id`. Los códigos de energía llevan el prefijo
+`E-` porque CEML repite ids entre los dos servicios. Las direcciones y
 las coordenadas son **ficticias** (generadas con semilla fija alrededor de un punto genérico) y no
 corresponden a ubicaciones reales. La foto de muestra de cada medidor es su primera foto CEML.
 
@@ -51,10 +58,19 @@ Usuarios (solo para demo; la contraseña es `DEMO_PASSWORD`, por defecto `demo12
 - `admin`: administrador, ve todo y las estadísticas.
 - `lector1`: lecturista de la Ruta 80.
 - `lector2`: lecturista de la Ruta 90.
+- `lector3`: lecturista de la Ruta 1 (energía).
+
+## Agua y energía
+
+Cada medidor tiene un servicio (`service`: `water` o `energy`) y sus fotos se leen con los modelos
+de ese servicio, que se cargan recién con la primera foto. Los de energía se leen tal como se
+fotografiaron, sin probar el visor girado 180°: están en pared o pilar y se fotografían derechos,
+y los dígitos de 7 segmentos girados siguen pareciendo dígitos.
 
 ## Sin modelo de dígitos
 
-Si no existe `models/digits_yolov8n.pt`, el backend carga solo el segmentador: `analyze` devuelve
+Si no existe el detector de dígitos de un servicio (`models/digits_yolov8n.pt` para agua), el
+backend carga solo el segmentador de ese servicio: `analyze` devuelve
 el visor (`overlay`, `crop`) con `reading: null` y `digits_model_available: false`, y la lectura se
 tipea a mano. Al copiar los pesos se usa el pipeline completo (reiniciar el servidor).
 

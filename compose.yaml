@@ -1,6 +1,6 @@
 # App web de toma de lecturas: base de datos, API con el pipeline de visión y frontend.
 # Uso: docker compose up -d --build  →  http://localhost:8080
-# Usuarios de demo: admin, lector1, lector2 (contraseña DEMO_PASSWORD, por defecto demo1234).
+# Usuarios de demo: admin, lector1 y lector2 (agua), lector3 (energía) (contraseña DEMO_PASSWORD, por defecto demo1234).
 
 services:
   db:
@@ -49,7 +49,7 @@ services:
       retries: 24
 
   api:
-    # El contexto es la raíz del repo: la imagen necesita src/, models/ y data/ceml.
+    # El contexto es la raíz del repo: la imagen necesita src/, models/, data/ceml y data/ceml_energia.
     build:
       context: .
       dockerfile: app/backend/Dockerfile

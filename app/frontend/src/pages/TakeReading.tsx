@@ -1,7 +1,7 @@
 import { useState, type ChangeEvent } from 'react'
 import { ArrowLeftIcon, TriangleAlertIcon } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
-import { api, type Analysis, type Reading, type ReadingPayload } from '../api'
+import { SERVICE_LABEL, api, type Analysis, type Reading, type ReadingPayload } from '../api'
 import { getPosition, useBestPosition, useLoad, type GpsStatus, type Position } from '../hooks'
 import { formatLocation } from '../format'
 import { isLowConfidence } from '../constants'
@@ -102,7 +102,10 @@ export default function TakeReading() {
         <Card>
           <CardContent className="flex flex-col gap-1">
             <div className="flex items-center justify-between gap-2">
-              <strong>{m.code}</strong>
+              <span className="flex items-baseline gap-2">
+                <strong>{m.code}</strong>
+                <span className="text-sm text-muted-foreground">{SERVICE_LABEL[m.service]}</span>
+              </span>
               <StatusBadge status={m.status} />
             </div>
             <span>{m.address}</span>

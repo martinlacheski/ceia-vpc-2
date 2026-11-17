@@ -87,3 +87,18 @@ def test_build_model_outputs_one_score_per_class():
     x = module.to_tensor([np.zeros((192, 384, 3), dtype=np.uint8)] * 2)
     with torch.no_grad():
         assert net(x).shape == (2, 6)
+
+
+def test_load_sources_concatenates_several_datasets(tmp_path):
+    module = load_module()
+    sources = []
+    for name, model in (("agua", "abb_4_3"), ("energia", "abb_5_1")):
+        root = tmp_path / name
+        (root / "images").mkdir(parents=True)
+        (root / "labels").mkdir()
+        Image.new("RGB", (400, 300), (90, 90, 90)).save(root / "images" / f"{name}.jpg")
+        (root / "labels" / f"{name}.txt").write_text("0 0.3 0.4 0.7 0.4 0.7 0.5 0.3 0.5\n")
+        (root / "readings.csv").write_text(f"file,modelo\n{name}.jpg,{model}\n")
+        sources.append(root)
+    examples = module.load_sources(sources)
+    assert [(e["file"], e["model"]) for e in examples] == [("agua.jpg", "abb_4_3"), ("energia.jpg", "abb_5_1")]

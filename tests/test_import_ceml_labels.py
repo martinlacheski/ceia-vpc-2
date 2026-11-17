@@ -57,3 +57,24 @@ def test_writes_clean_coco_with_original_names(tmp_path):
     assert [i["file_name"] for i in coco["images"]] == ["agua_2019-01_r80_m0011.jpg"]
     assert [a["id"] for a in coco["annotations"]] == [1]
     assert coco["categories"] == [{"id": 1, "name": "display"}]
+
+
+def test_merge_joins_separate_wheels_into_one_hull(tmp_path):
+    # Medidor de rodillos con las ruedas separadas: el auto-label da un polígono por rueda.
+    coco_path = make_export(tmp_path)
+    coco = json.loads(coco_path.read_text(encoding="utf-8"))
+    coco["annotations"] = [
+        {"id": 1, "image_id": 7, "category_id": 1, "segmentation": [square(10, 20, 10)], "area": 100},
+        {"id": 2, "image_id": 7, "category_id": 1, "segmentation": [square(40, 20, 10)], "area": 100},
+    ]
+    coco_path.write_text(json.dumps(coco), encoding="utf-8")
+    out = tmp_path / "ceml"
+    subprocess.run([sys.executable, str(SCRIPT), "--coco", str(coco_path), "--out", str(out), "--merge"],
+                   capture_output=True, text=True, check=True)
+
+    label = (out / "labels" / "agua_2019-01_r80_m0011.txt").read_text().split()
+    xs, ys = [float(v) for v in label[1::2]], [float(v) for v in label[2::2]]
+    # Un solo polígono que va de la primera rueda (x=10) a la última (x=50).
+    assert (min(xs), max(xs), min(ys), max(ys)) == (0.1, 0.5, 0.1, 0.15)
+    merged = json.loads((out / "annotations.coco.json").read_text(encoding="utf-8"))["annotations"]
+    assert len(merged) == 1 and merged[0]["area"] == 400

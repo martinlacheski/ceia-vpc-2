@@ -60,5 +60,5 @@ def sample_photo(meter: Meter = Depends(accessible_meter),
 def _sample_path(settings: Settings, meter: Meter):
     if not meter.sample_photo:
         return None
-    path = settings.ceml_dir / "images" / meter.sample_photo
+    path = settings.photos_dir(meter.service) / "images" / meter.sample_photo
     return path if path.is_file() else None

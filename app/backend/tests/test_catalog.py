@@ -11,7 +11,7 @@ def test_reader_sees_only_own_routes(reader1):
 
 def test_admin_sees_all_routes(client):
     login(client, "admin")
-    assert [r["name"] for r in client.get("/api/routes").json()] == ["Ruta 80", "Ruta 90"]
+    assert [r["name"] for r in client.get("/api/routes").json()] == ["Ruta 1 (energía)", "Ruta 80", "Ruta 90"]
 
 
 def test_reader_forbidden_on_other_route_meters(reader1, client):
@@ -26,7 +26,8 @@ def test_meters_listing_shape_and_pending_to_read(reader1, photo):
     meters = reader1.get(f"/api/routes/{route_id}/meters").json()
     assert [m["code"] for m in meters] == ["m0001", "m0002"]
     first = meters[0]
-    assert set(first) == {"id", "code", "address", "lat", "lon", "status", "last_reading"}
+    assert set(first) == {"id", "code", "service", "address", "lat", "lon", "status", "last_reading"}
+    assert first["service"] == "water"
     assert first["status"] == "pending" and first["last_reading"] is None
 
     analysis = reader1.post(f"/api/meters/{first['id']}/analyze", files=photo).json()
@@ -45,7 +46,7 @@ def test_meter_detail_and_sample_photo(reader1):
     route_id = reader1.get("/api/routes").json()[0]["id"]
     meter_id = reader1.get(f"/api/routes/{route_id}/meters").json()[0]["id"]
     detail = reader1.get(f"/api/meters/{meter_id}").json()
-    assert set(detail) == {"id", "code", "address", "lat", "lon", "route_id", "status",
+    assert set(detail) == {"id", "code", "service", "address", "lat", "lon", "route_id", "status",
                            "last_reading", "has_sample_photo"}
     assert detail["has_sample_photo"] is True and detail["route_id"] == route_id
     photo = reader1.get(f"/api/meters/{meter_id}/sample-photo")
@@ -63,3 +64,26 @@ def test_meter_of_other_route_is_403_and_missing_is_404(reader1, client):
 
 def test_requires_login(client):
     assert client.get("/api/routes").status_code == 401
+
+
+def energy_meter(client):
+    login(client, "lector3")
+    route = client.get("/api/routes").json()
+    assert [r["name"] for r in route] == ["Ruta 1 (energía)"]
+    meters = client.get(f"/api/routes/{route[0]['id']}/meters").json()
+    assert len(meters) == 1
+    return meters[0]
+
+
+def test_energy_meter_is_listed_with_its_service_and_prefixed_code(client):
+    meter = energy_meter(client)
+    # el id m0001 también existe en agua: el código de energía lleva prefijo para no chocar
+    assert meter["code"] == "E-m0001" and meter["service"] == "energy"
+
+
+def test_energy_sample_photo_comes_from_the_energy_photos(client, settings):
+    meter = energy_meter(client)
+    assert client.get(f"/api/meters/{meter['id']}").json()["has_sample_photo"] is True
+    photo = client.get(f"/api/meters/{meter['id']}/sample-photo")
+    expected = (settings.ceml_energy_dir / "images" / "energia_2019-02_r1_m0001.jpg").read_bytes()
+    assert photo.status_code == 200 and photo.content == expected

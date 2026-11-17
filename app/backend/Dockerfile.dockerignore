@@ -7,4 +7,6 @@
 !src/meter_reader
 !models/*.pt
 !data/ceml
+!data/ceml_energia/metadata.csv
+!data/ceml_energia/images
 **/__pycache__

@@ -1,4 +1,4 @@
-"""Datos de demo: usuarios, rutas y medidores a partir de la metadata de CEML.
+"""Datos de demo: usuarios, rutas y medidores a partir de la metadata de CEML (agua y energía).
 
 Es idempotente: se puede correr en cada arranque; solo crea lo que falta.
 Las direcciones y coordenadas son FICTICIAS: se generan con un RNG con semilla alrededor de un
@@ -19,17 +19,28 @@ from .models import Meter, Route, User
 CENTER_LAT, CENTER_LON = -31.4200, -64.1900
 SPREAD_DEG = 0.009
 RNG_SEED = 20240
+# Energía usa su propia secuencia: agregarla no cambia las coordenadas de agua ya sembradas.
+ENERGY_RNG_SEED = RNG_SEED + 1
+# CEML repite ids entre agua y energía; el código de energía lleva prefijo para que sea único.
+ENERGY_CODE_PREFIX = "E-"
 
-USERS = [  # (username, nombre, rol, ruta CEML asignada)
-    ("admin", "Administrador", "admin", None),
-    ("lector1", "Lector Uno", "reader", "80"),
-    ("lector2", "Lector Dos", "reader", "90"),
+USERS = [  # (username, nombre, rol)
+    ("admin", "Administrador", "admin"),
+    ("lector1", "Lector Uno", "reader"),
+    ("lector2", "Lector Dos", "reader"),
+    ("lector3", "Lector Tres", "reader"),
+]
+
+ROUTES = [  # (servicio, ruta CEML, nombre en la app, lecturista)
+    ("water", "80", "Ruta 80", "lector1"),
+    ("water", "90", "Ruta 90", "lector2"),
+    ("energy", "1", "Ruta 1 (energía)", "lector3"),
 ]
 
 
-def read_ceml(settings: Settings) -> dict[str, tuple[str, list[str]]]:
-    """Devuelve {meter_id: (ruta, [fotos ordenadas])} a partir de metadata.csv."""
-    path = settings.ceml_dir / "metadata.csv"
+def read_ceml(settings: Settings, service: str = "water") -> dict[str, tuple[str, list[str]]]:
+    """Devuelve {meter_id: (ruta, [fotos ordenadas])} a partir del metadata.csv del servicio."""
+    path = settings.photos_dir(service) / "metadata.csv"
     if not path.exists():
         return {}
     meters: dict[str, tuple[str, list[str]]] = {}
@@ -42,7 +53,7 @@ def read_ceml(settings: Settings) -> dict[str, tuple[str, list[str]]]:
 
 def seed(db: Session, settings: Settings) -> None:
     users: dict[str, User] = {}
-    for username, full_name, role, _ in USERS:
+    for username, full_name, role in USERS:
         user = db.scalar(select(User).where(User.username == username))
         if user is None:
             user = User(username=username, full_name=full_name, role=role,
@@ -51,28 +62,28 @@ def seed(db: Session, settings: Settings) -> None:
         users[username] = user
     db.flush()
 
-    ceml = read_ceml(settings)
-    routes: dict[str, Route] = {}
-    for username, _, _, route_key in USERS:
-        if route_key is None:
-            continue
-        name = f"Ruta {route_key}"
+    routes: dict[tuple[str, str], Route] = {}
+    for service, route_key, name, username in ROUTES:
         route = db.scalar(select(Route).where(Route.name == name))
         if route is None:
             route = Route(name=name, assignee_id=users[username].id)
             db.add(route)
-        routes[route_key] = route
+        routes[(service, route_key)] = route
     db.flush()
 
-    rng = random.Random(RNG_SEED)
-    for meter_id in sorted(ceml):
-        route_key, files = ceml[meter_id]
-        # Se sortea siempre, exista o no el medidor, para que los valores no dependan de lo ya cargado.
-        lat = CENTER_LAT + rng.uniform(-SPREAD_DEG, SPREAD_DEG)
-        lon = CENTER_LON + rng.uniform(-SPREAD_DEG, SPREAD_DEG)
-        address = f"Calle {rng.randint(1, 60)} Nº {rng.randint(100, 999)}"
-        if route_key not in routes or db.scalar(select(Meter).where(Meter.code == meter_id)):
-            continue
-        db.add(Meter(code=meter_id, address=address, lat=round(lat, 6), lon=round(lon, 6),
-                     route_id=routes[route_key].id, sample_photo=files[0]))
+    for service, rng_seed, prefix in (("water", RNG_SEED, ""), ("energy", ENERGY_RNG_SEED, ENERGY_CODE_PREFIX)):
+        ceml = read_ceml(settings, service)
+        rng = random.Random(rng_seed)
+        for meter_id in sorted(ceml):
+            route_key, files = ceml[meter_id]
+            # Se sortea siempre, exista o no el medidor, para que los valores no dependan de lo ya cargado.
+            lat = CENTER_LAT + rng.uniform(-SPREAD_DEG, SPREAD_DEG)
+            lon = CENTER_LON + rng.uniform(-SPREAD_DEG, SPREAD_DEG)
+            address = f"Calle {rng.randint(1, 60)} Nº {rng.randint(100, 999)}"
+            code = prefix + meter_id
+            route = routes.get((service, route_key))
+            if route is None or db.scalar(select(Meter).where(Meter.code == code)):
+                continue
+            db.add(Meter(code=code, service=service, address=address, lat=round(lat, 6), lon=round(lon, 6),
+                         route_id=route.id, sample_photo=files[0]))
     db.commit()

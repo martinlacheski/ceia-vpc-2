@@ -24,6 +24,10 @@ Guarda experiments/pipeline_ceml/results.json y predictions.csv (una columna por
 
 Uso (con el entorno que tiene ultralytics, torch y easyocr, por ejemplo .venv-rocm):
   python scripts/evaluate_pipeline.py
+  python scripts/evaluate_pipeline.py --no-flip --sheet data/ceml_energia/readings.csv \
+      --images data/ceml_energia/images --seg-weights models/toloka_yfzw4_energia_yolov8n_seg.pt \
+      --digits-v8 models/digits_mix_energia_yolov8n.pt --classifier meter_layout_agua_energia \
+      --out experiments/pipeline_ceml_energia
 """
 
 import argparse
@@ -150,6 +154,8 @@ def main() -> None:
     parser.add_argument("--classifier", default="meter_layout_mnv3s",
                         help="experimento del clasificador: usa su oof.csv y models/<nombre>.pt (latencia)")
     parser.add_argument("--out", type=Path, default=ROOT / "experiments/pipeline_ceml")
+    parser.add_argument("--no-flip", action="store_true",
+                        help="no probar el visor girado 180° (medidores que se fotografían derechos, como energía)")
     args = parser.parse_args()
 
     import ultralytics  # noqa: F401  (antes que torch: configura los hilos de OpenMP)
@@ -168,6 +174,7 @@ def main() -> None:
     ocr = easyocr.Reader(["en"], gpu=gpu, verbose=False)
     oof = load_oof(ROOT / "experiments" / args.classifier / "oof.csv")
     truth = load_ground_truth(args.sheet)
+    allow_flip = not args.no_flip
 
     predictions = {key: {} for key in CONFIGS}
     for i, t in enumerate(truth, 1):
@@ -178,10 +185,10 @@ def main() -> None:
         classify = lambda _input: (label, probability)  # noqa: E731  predicción out-of-fold
 
         def run(key, **kwargs):
-            reading = read_meter(image, seg, **kwargs).reading
+            reading = read_meter(image, seg, allow_flip=allow_flip, **kwargs).reading
             predictions[key][t["file"]] = (reading.formatted, reading.confidence) if reading.text else None
 
-        final = read_meter(image, seg, detect_v8, classify)
+        final = read_meter(image, seg, detect_v8, classify, allow_flip=allow_flip)
         predictions["A"][t["file"]] = (final.reading.formatted, final.reading.confidence) if final.reading.text else None
         run("B", detect=detect_v8)
         run("C", detect=detect_v8, classify=classify, rectified=False)
@@ -203,10 +210,10 @@ def main() -> None:
     cpu_classify = load_classifier(ROOT / "models" / f"{args.classifier}.pt")
     images = [cv2.imread(str(args.images / t["file"])) for t in truth[:LATENCY_IMAGES]]
     for image in images[:3]:
-        read_meter(image, cpu_segment, cpu_detect, cpu_classify)
+        read_meter(image, cpu_segment, cpu_detect, cpu_classify, allow_flip=allow_flip)
     start = time.perf_counter()
     for image in images:
-        read_meter(image, cpu_segment, cpu_detect, cpu_classify)
+        read_meter(image, cpu_segment, cpu_detect, cpu_classify, allow_flip=allow_flip)
     results["latencia_cpu_ms"] = round((time.perf_counter() - start) / len(images) * 1000, 1)
 
     args.out.mkdir(parents=True, exist_ok=True)

@@ -33,6 +33,22 @@ Lectura de punta a punta sobre 323 fotos de campo CEML verificadas a mano (`scri
 
 El resumen con gráficos y el pipeline paso a paso está en [notebooks/03_resultados.ipynb](notebooks/03_resultados.ipynb); el detalle de cada experimento, en [experiments/README.md](experiments/README.md); y el motivo de cada decisión, en [docs/decisiones.md](docs/decisiones.md).
 
+### Extensión: medidores de energía
+
+El mismo pipeline se extendió a los medidores de energía de la cooperativa (rodillos y LCD de 7 segmentos), con el segmentador, el clasificador de formato y el detector de dígitos reentrenados con fotos de energía. Evaluación sobre una muestra aparte de 201 fotos verificadas a mano, que no se usaron para entrenar (`experiments/pipeline_ceml_energia/`):
+
+| Configuración (energía) | Lectura exacta | m³ exactos | CER | Sin lectura |
+|---|---|---|---|---|
+| **A. Rectificado + YOLOv8n + clasificador de formato** | **66,7 %** | **79,1 %** | **0,082** | **0 %** |
+| B. Rectificado + YOLOv8n + solo color | 3,0 % | 5,5 % | 0,082 | 0 % |
+| C. Recorte por caja + YOLOv8n + clasificador | 51,7 % | 62,2 % | 0,226 | 5,0 % |
+| E. Rectificado + EasyOCR + clasificador (baseline) | 3,0 % | 8,5 % | 0,577 | 11,9 % |
+
+- **Rectificar también sirve en energía** (A contra C): +15,0 puntos de lectura exacta.
+- Sin fracción roja, el color no ubica el punto: el clasificador de formato es imprescindible (A contra B).
+- Partiendo del pipeline de agua, la lectura exacta en energía pasó de 18,9 % a 66,7 %: segmentador con energía, leer sin giro de 180° (se fotografían derechos), clasificador reentrenado y, el salto mayor, el detector de dígitos con 483 recortes de energía etiquetados.
+- La app elige los modelos según el servicio de cada medidor; agua conserva los de la tabla anterior.
+
 ## Estructura del repositorio
 
 | Carpeta | Contenido |
@@ -80,7 +96,7 @@ Prototipo para el uso real del sistema: el lecturista inicia sesión, recorre su
 docker compose up -d --build
 ```
 
-Abrir http://localhost:8080. Usuarios de demo: `lector1`, `lector2` y `admin`, con contraseña `demo1234` (solo para desarrollo local). Los medidores son los de las fotos CEML, con direcciones y coordenadas ficticias; el botón *Usar foto de ejemplo* analiza la foto real de cada medidor.
+Abrir http://localhost:8080. Usuarios de demo: `lector1` y `lector2` (agua), `lector3` (energía) y `admin`, con contraseña `demo1234` (solo para desarrollo local). Los medidores son los de las fotos CEML, con direcciones y coordenadas ficticias; el botón *Usar foto de ejemplo* analiza la foto real de cada medidor.
 
 | Servicio | Qué es |
 |---|---|
@@ -132,7 +148,7 @@ ngrok muestra la URL pública en la línea *Forwarding* (`https://....ngrok-free
 **4. Tomar una lectura real desde el celular**
 
 1. Abrir la URL `https://...` en el navegador del celular. El plan gratuito muestra primero un aviso de ngrok: tocar **Visit Site**.
-2. Ingresar con `lector1` (o `lector2`) y la contraseña elegida.
+2. Ingresar con `lector1` (o `lector2`, o `lector3` para energía) y la contraseña elegida.
 3. Entrar a la ruta y elegir un medidor (son medidores de prueba; se puede fotografiar cualquier medidor de agua de rodillos).
 4. Tocar el campo **Foto del medidor**: el celular ofrece abrir la cámara. Encuadrar el visor con buena luz y sin reflejos, y sacar la foto.
 5. La app muestra la segmentación del visor, el visor rectificado, los dígitos detectados y la lectura propuesta. Corregirla si hace falta y tocar **Confirmar lectura**.

@@ -1,6 +1,6 @@
 import { ArrowLeftIcon } from 'lucide-react'
 import { Link, useParams } from 'react-router-dom'
-import { api } from '../api'
+import { SERVICE_LABEL, api } from '../api'
 import { useLoad } from '../hooks'
 import { formatDate } from '../format'
 import PageHeader from '../components/PageHeader'
@@ -49,7 +49,10 @@ export default function RouteView() {
                 <Card>
                   <CardContent className="flex flex-col gap-1">
                     <div className="flex items-center justify-between gap-2">
-                      <strong>{m.code}</strong>
+                      <span className="flex items-baseline gap-2">
+                        <strong>{m.code}</strong>
+                        <span className="text-sm text-muted-foreground">{SERVICE_LABEL[m.service]}</span>
+                      </span>
                       <StatusBadge status={m.status} />
                     </div>
                     <span>{m.address}</span>

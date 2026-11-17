@@ -93,6 +93,47 @@ Latencia del pipeline final en CPU (Ryzen AI, media de 20 fotos, segmentación +
 - **EasyOCR no sirve como lector de rodillos (E)**: lee las barras entre rodillos y los números a medio girar (para `00053.25` devuelve `64055837215`). Se probó agrandar el recorte 3 veces y pasarlo a gris en una muestra de 12 fotos, sin mejora. Muestra por qué hace falta un detector entrenado para el dominio.
 - **Confianza como filtro**: el 80,7 % de las lecturas pasa sin revisión y de esas el 83,1 % es exacta; el resto va a revisión manual en la app.
 
+## Etapa 5: extensión a medidores de energía
+
+Muestra de prueba: 201 fotos de energía verificadas a mano (`muestra=si` en `data/ceml_energia/readings.csv`; 101 de rodillos y 100 LCD). Para entrenar se excluyen todas las fotos de los medidores de la muestra.
+
+**Segmentador** `toloka_yfzw4_energia_yolov8n_seg`: B de la etapa 1 con 587 fotos de energía de más en train (visores etiquetados en Roboflow con SAM 3 y revisados), mismos hiperparámetros.
+
+| Métrica | B (agua) | Con energía |
+|---|---|---|
+| Toloka test, máscara mAP50-95 | 0,847 | 0,851 |
+| CEML agua, recall / mAP50-95 | 0,911 / 0,434 | 0,921 / 0,404 |
+| Muestra de energía, máscara mAP50 | 0,776 | 0,995 |
+
+**Clasificador de formato** `meter_layout_agua_energia`: MobileNetV3-small con agua y energía juntos (1107 fotos, 10 formatos), validación cruzada de 5 folds: exactitud 99,37 %, F1 macro 0,967.
+
+**Detector de dígitos**: pre-etiquetas del detector de agua sobre los visores rectificados, corregidas en Roboflow y revisadas contra el modelo. Split train/val por medidor.
+
+| Experimento | Recortes de energía | Test público mAP50-95 | Muestra: exacta | m³ | CER |
+|---|---|---|---|---|---|
+| `digits_mix_yolov8n` (sin energía) | 0 | 0,7116 | 32,3 % | 46,3 % | 0,175 |
+| **`digits_mix_energia_yolov8n` (E3)** | **483** | **0,7126** | **66,7 %** | **79,1 %** | **0,082** |
+| `digits_mix_energia_rev_yolov8n` (E4, solo legibles) | 209 | 0,7134 | 65,7 % | 76,1 % | 0,082 |
+
+Se elige E3. Por tipo: rodillos 58/101 exactas, LCD 76/100 (E4: 62/101 y 70/100).
+
+**Lectura de punta a punta** (`scripts/evaluate_pipeline.py --no-flip`, ver el docstring; resultados en `experiments/pipeline_ceml_energia/`):
+
+| # | Configuración | Exacta | m³ exactos | CER | Sin lectura | Sin revisión (exactas) |
+|---|---|---|---|---|---|---|
+| A | Rectificado + YOLOv8n (E3) + clasificador | **66,7 %** | **79,1 %** | **0,082** | **0 %** | 88,1 % (74,0 %) |
+| B | Rectificado + YOLOv8n (E3) + solo color | 3,0 % | 5,5 % | 0,082 | 0 % | 88,1 % (3,4 %) |
+| C | Recorte por caja + YOLOv8n (E3) + clasificador | 51,7 % | 62,2 % | 0,226 | 5,0 % | 66,7 % (70,9 %) |
+| D | Rectificado + YOLO11n (agua) + clasificador | 21,9 % | 34,8 % | 0,446 | 3,5 % | 36,8 % (52,7 %) |
+| E | Rectificado + EasyOCR + clasificador | 3,0 % | 8,5 % | 0,577 | 11,9 % | 30,3 % (9,8 %) |
+
+D usa el YOLO11n de agua, que no vio energía: no es comparable con A. Latencia en CPU: 61 ms (una sola orientación).
+
+Camino desde el pipeline de agua (lectura exacta en la muestra): 18,9 % → 16,9 % con el segmentador nuevo (pero sin lectura de 22,9 % a 0 %) → 27,4 % sin giro de 180° → 32,3 % con el clasificador reentrenado → 66,7 % con los dígitos de energía.
+
+- **Orientación**: con giro, 78 de 162 errores eran lecturas al revés. En energía no hay fracción roja que decida y los 7 segmentos girados siguen pareciendo dígitos; leer siempre sin girar iguala al oráculo. En agua sí hace falta (medidores en el piso).
+- **Agua con E3**: 65,2 % contra 71,2 % con `digits_yolov8n`, así que el detector es por servicio.
+
 ## Notas
 
 - **B frente a A**: el visor derivado de water-meter-dataset sube el recall en CEML de 0,867 a 0,911 y el mAP50 de 0,858 a 0,937. En Toloka baja algo el mAP50-95 (0,877 → 0,847), esperable porque el visor derivado sigue el contorno de los dígitos y no el marco anotado en Toloka.

@@ -27,6 +27,14 @@ def test_analyze_contract_shape(reader1, photo):
     assert set(body["images"]) == {"overlay", "crop", "digits"}
 
 
+def test_analyze_passes_the_meter_service_to_the_reader(client, fake_reader, photo):
+    login(client, "lector1")
+    analyze(client, first_meter(client)["id"], photo)
+    login(client, "lector3")
+    analyze(client, first_meter(client)["id"], photo)
+    assert fake_reader.services == ["water", "energy"]
+
+
 def test_analyze_without_digits_model(reader1, fake_reader, photo):
     fake_reader.output = ReaderOutput(
         display_found=True, reading=None, confidence=None, flipped=False,
@@ -57,7 +65,7 @@ def test_analyze_requires_photo(reader1):
 
 
 def test_analyze_invalid_image_is_422(reader1, fake_reader, photo):
-    def boom(_):
+    def boom(*_):
         raise ValueError("no es imagen")
     fake_reader.analyze = boom
     meter = first_meter(reader1)
@@ -273,7 +281,7 @@ def test_admin_review_corrects_final_value_without_touching_reader_data(client, 
     assert body["review"]["reviewed_at"]
     assert client.get("/api/readings").json()[0]["final_value"] == "01240"
     # la última lectura del medidor muestra el valor final
-    route_id = client.get("/api/routes").json()[0]["id"]
+    route_id = next(r["id"] for r in client.get("/api/routes").json() if r["name"] == "Ruta 80")
     meters = {m["id"]: m for m in client.get(f"/api/routes/{route_id}/meters").json()}
     assert meters[meter["id"]]["last_reading"]["value"] == "01240"
     # la métrica del modelo en campo no cambia por la revisión

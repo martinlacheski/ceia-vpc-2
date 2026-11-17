@@ -34,7 +34,7 @@ def final_value(reading: Reading) -> str:
 def meter_out(db: Session, meter: Meter) -> dict:
     last = last_reading(db, meter.id)
     return {
-        "id": meter.id, "code": meter.code, "address": meter.address,
+        "id": meter.id, "code": meter.code, "service": meter.service, "address": meter.address,
         "lat": meter.lat, "lon": meter.lon,
         "status": "read" if last else "pending",
         "last_reading": {"value": final_value(last), "taken_at": iso(last.taken_at)} if last else None,

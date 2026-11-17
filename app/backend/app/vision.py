@@ -29,46 +29,55 @@ class ReaderOutput:
     digits_jpeg: bytes | None = None
 
 
+@dataclass
+class _Models:
+    """Modelos de un servicio. Sin detector de dígitos solo se segmenta el visor."""
+
+    segment: object
+    detect: object = None
+    classify: object = None
+
+
 class MeterReader:
-    """Lector real. Si faltan los pesos de dígitos solo segmenta el visor (modo sin lectura);
-    si falta el clasificador del modelo de medidor, la fracción se separa por el color."""
+    """Lector real, con un juego de modelos por servicio ("water" o "energy") que se carga recién
+    al leer la primera foto de ese servicio. Si faltan los pesos de dígitos solo segmenta el visor
+    (modo sin lectura); si falta el clasificador del modelo de medidor, la fracción se separa por
+    el color. Energía se lee sin probar el visor girado 180° (ver read_meter, allow_flip)."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
         self._lock = threading.Lock()  # una inferencia a la vez
-        self._loaded = False
-        self._segment = None
-        self._detect = None
-        self._classify = None
+        self._models: dict[str, _Models] = {}
 
-    @property
-    def digits_model_available(self) -> bool:
-        return self.settings.digit_weights.exists()
+    def digits_model_available(self, service: str = "water") -> bool:
+        return self.settings.weights(service)[1].exists()
 
-    def _load(self) -> None:
-        if self._loaded:
-            return
+    def _load(self, service: str) -> _Models:
+        if service in self._models:
+            return self._models[service]
         src = str(self.settings.src_dir)
         if src not in sys.path:
             sys.path.insert(0, src)
-        if self.digits_model_available:
-            from meter_reader.pipeline import load_models
+        seg_weights, digit_weights, meter_model_weights = self.settings.weights(service)
+        if digit_weights.exists():
+            from meter_reader import pipeline
 
-            self._segment, self._detect = load_models(
-                str(self.settings.seg_weights), str(self.settings.digit_weights))
-            if self.settings.meter_model_weights.exists():
+            models = _Models(*pipeline.load_models(str(seg_weights), str(digit_weights)))
+            if meter_model_weights.exists():
                 from meter_reader.meter_model import load_classifier
 
-                self._classify = load_classifier(self.settings.meter_model_weights)
+                models.classify = load_classifier(meter_model_weights)
         else:
-            self._segment = self._load_segmenter_only()
-        self._loaded = True
+            models = _Models(self._load_segmenter_only(seg_weights))
+        self._models[service] = models
+        return models
 
-    def _load_segmenter_only(self):
+    @staticmethod
+    def _load_segmenter_only(seg_weights):
         """Segmentador equivalente al de `load_models`, sin exigir los pesos de dígitos."""
         from ultralytics import YOLO
 
-        model = YOLO(str(self.settings.seg_weights))
+        model = YOLO(str(seg_weights))
 
         def segment(image):
             result = model.predict(image, imgsz=640, conf=0.25, verbose=False)[0]
@@ -78,7 +87,7 @@ class MeterReader:
 
         return segment
 
-    def analyze(self, photo: bytes) -> ReaderOutput:
+    def analyze(self, photo: bytes, service: str = "water") -> ReaderOutput:
         import cv2
         import numpy as np
 
@@ -86,22 +95,22 @@ class MeterReader:
         if image is None:
             raise ValueError("no es una imagen")
         with self._lock:
-            self._load()
-            return self._run(image)
+            return self._run(image, self._load(service), allow_flip=service != "energy")
 
-    def _run(self, image) -> ReaderOutput:
-        from meter_reader.pipeline import CROP_PAD, read_meter
+    def _run(self, image, models: _Models, allow_flip: bool) -> ReaderOutput:
+        from meter_reader import pipeline
         from meter_reader.rectify import rectify
 
-        available = self._detect is not None
+        available = models.detect is not None
         if available:
-            result = read_meter(image, self._segment, self._detect, self._classify)
+            result = pipeline.read_meter(image, models.segment, models.detect, models.classify,
+                                         allow_flip=allow_flip)
             polygon, crop, flipped, reading = result.polygon, result.crop, result.flipped, result.reading
         else:
-            polygon = self._segment(image)
+            polygon = models.segment(image)
             if polygon is not None and len(polygon) < 3:
                 polygon = None
-            crop = rectify(image, polygon, pad=CROP_PAD)[0] if polygon is not None else None
+            crop = rectify(image, polygon, pad=pipeline.CROP_PAD)[0] if polygon is not None else None
             flipped, reading = False, None
 
         if polygon is None or crop is None:
