@@ -1,25 +1,29 @@
 # Datasets
 
-Los datasets públicos no se versionan en el repositorio: se descargan en `data/raw/`. Las fotos de campo propias sí se versionan, en `data/ceml/`.
+Los datasets públicos no se versionan en el repositorio: se descargan en `data/raw/`. Las fotos de campo propias sí se versionan, en `data/ceml/` (agua) y `data/ceml_energia/` (energía).
 
 | Dataset | Uso | Versión | Contenido | Licencia | Carpeta |
 |---|---|---|---|---|---|
 | [Water Meters Dataset (Toloka)](https://www.kaggle.com/datasets/tapakah68/yandextoloka-water-meters-dataset) | Etapa 1: segmentación del visor | Kaggle | 1.244 imágenes; polígono del visor y lectura en `data.csv`, máscaras y collages | CC BY-NC-ND 4.0 | `data/raw/toloka/` |
 | [water-meter-dataset (Roboflow)](https://universe.roboflow.com/water-meter-yfzw4/water-meter-dataset) | Etapa 2: detección de dígitos. Etapa 1: entrenamiento adicional de la segmentación con el visor derivado de los dígitos (ver abajo) | v3 (exportada el 17/01/2024) | 8.978 imágenes sin augmentation; solo clases `0`–`9` (cajas o cuadriláteros por dígito) | CC BY 4.0 | `data/raw/roboflow_water_meter/` |
-| [Fotos de campo CEML (Misiones)](ceml/) | Conjunto de prueba en condiciones reales | — | 324 imágenes de 314 medidores; polígono del visor (auto-etiquetado con SAM 3 y revisión manual) | Uso académico | `data/ceml/` |
+| [meter-digits-5srka (Roboflow)](https://universe.roboflow.com/mohammad-annus/meter-digits-5srka) | Energía, etapa 2: dígitos LCD de 7 segmentos para el detector de dígitos (`digits_mix`) | v7 (2025-03-10) | 2.573 imágenes; una caja por dígito | CC BY 4.0 | `data/raw/energia/meter-digits-5srka/` |
+| [meter-digits-frvqn (Roboflow)](https://universe.roboflow.com/meter-i5vud/meter-digits-frvqn) | Energía, etapa 2: dígitos LCD de 7 segmentos para el detector de dígitos (`digits_mix`) | v2 (2023-05-05) | 1.895 imágenes; una caja por dígito | CC BY 4.0 | `data/raw/energia/meter-digits-frvqn/` |
+| [Fotos de campo CEML de agua (Misiones)](ceml/) | Agua: prueba en condiciones reales y entrenamiento del clasificador de formato | — | 324 imágenes de 314 medidores; polígono del visor (auto-etiquetado con SAM 3 y revisión manual) | Uso académico | `data/ceml/` |
+| [Fotos de campo CEML de energía (Misiones)](ceml_energia/) | Energía: entrenamiento de las tres piezas y muestra de prueba aparte | — | 788 imágenes de 750 medidores; polígono del visor y 499 visores con sus dígitos | Uso académico | `data/ceml_energia/` |
 
 ## Descarga
 
-Automática: `python scripts/download_data.py` (Toloka sin credenciales; water-meter-dataset requiere la variable de entorno `ROBOFLOW_API_KEY`). En Kaggle, Toloka debe adjuntarse al notebook con *Add Input*.
+Automática: `python scripts/download_data.py` (Toloka sin credenciales; water-meter-dataset requiere la variable de entorno `ROBOFLOW_API_KEY`). Los dos datasets LCD de energía se bajan aparte, también con `ROBOFLOW_API_KEY`: `python scripts/download_data.py --only energia`. En Kaggle, Toloka debe adjuntarse al notebook con *Add Input*.
 
 Manual:
 
 1. **Toloka**: en Kaggle, botón *Download*. Descomprimir el zip en `data/raw/toloka/` (deben quedar `images/`, `masks/`, `collage/` y el CSV).
 2. **water-meter-dataset**: en Roboflow Universe, *Download Dataset* → versión 3 → formato **YOLOv8** → *Download zip to computer*. Descomprimir en `data/raw/roboflow_water_meter/` (deben quedar `train/`, `valid/`, `test/` y `data.yaml`).
+3. **meter-digits-5srka** (versión 7) y **meter-digits-frvqn** (versión 2): igual que el anterior, en formato **YOLOv8**, descomprimidos en `data/raw/energia/<nombre>/`.
 
 ## Datasets evaluados y descartados
 
-- [meter-digits](https://universe.roboflow.com/meter-i5vud/meter-digits-frvqn) (v2): corresponde a medidores eléctricos y la mayoría de las imágenes muestra un único medidor.
+- [meter-digits](https://universe.roboflow.com/meter-i5vud/meter-digits-frvqn) (v2), **para agua**: corresponde a medidores eléctricos y la mayoría de las imágenes muestra un único medidor. Al extender el trabajo a energía sí se usa, como fuente de dígitos LCD (tabla de arriba).
 - [water-meter-reading](https://universe.roboflow.com/new-workspace-j7ezo/water-meter-reading) (v1): 549 de sus 774 imágenes de origen (71%) ya están incluidas en water-meter-dataset; además trae augmentation aplicada (rotaciones ×3) e imágenes estiradas a 608×608.
 
 El solapamiento entre Toloka y water-meter-dataset es mínimo (16 imágenes similares sobre 8.978, por hash perceptual).
@@ -37,6 +41,10 @@ Son **etiquetas derivadas**, no anotaciones originales del visor: siguen el cont
 ## Dígitos sobre el visor rectificado (etapa 2)
 
 `scripts/prepare_digits.py` arma el dataset de detección de dígitos con los mismos recortes que verá el pipeline. Para cada imagen de water-meter-dataset con al menos 5 dígitos, deriva el visor con el criterio anterior, lo endereza y recorta con `src/meter_reader/rectify.py` y transforma cada dígito a una caja YOLO dentro del recorte. Se conservan los splits originales: 6.848 recortes en train, 719 en val y 656 en test. Salida: `data/processed/digits_yfzw4/`.
+
+## Herramientas de etiquetado
+
+Los visores de CEML (agua y energía) y los dígitos de energía se etiquetaron en proyectos **privados** de Roboflow (las fotos son de clientes de la cooperativa), con SAM 3 y revisión manual. Esos proyectos no se publican: el resultado ya revisado está en `data/ceml/` y `data/ceml_energia/`.
 
 ## Fotos de campo CEML
 
@@ -72,7 +80,7 @@ El resto (Cyble, SIAP, Aquarius, Elster S120-V y otros) tiene 1 o 2 fotos cada u
 
 ## Fotos de campo CEML de energía
 
-`data/ceml_energia/` tiene 788 fotos de medidores de energía (rodillos y LCD), anonimizadas con el mismo criterio que las de agua. Es una extensión del trabajo: el eje sigue siendo agua.
+`data/ceml_energia/` tiene 788 fotos de medidores de energía (rodillos y LCD), anonimizadas con el mismo criterio que las de agua. Se usan para entrenar el segmentador, el detector de dígitos y el clasificador de formato de energía, y para evaluar sobre una muestra aparte.
 
 - `readings.csv`: `muestra=si` marca las 201 fotos de la **muestra de prueba** (100 LCD y 101 de rodillos), con la lectura verificada a mano. Se usan solo para evaluar de punta a punta (`scripts/evaluate_pipeline.py --no-flip`) y nunca para entrenar. `tipo` es `lcd` o `rodillos`; `modelo` termina en `_<dígitos enteros>_<dígitos de fracción>` (por ejemplo `elster_a100_6_1`).
 - `labels/` y `annotations.coco.json`: polígono del visor. Auto-etiquetado con SAM 3 en Roboflow, uniendo los polígonos de cada foto en su envolvente convexa (`scripts/import_ceml_labels.py --merge`) y revisado a mano.
