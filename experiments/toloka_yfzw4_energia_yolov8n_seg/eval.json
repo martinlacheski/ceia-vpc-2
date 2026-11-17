@@ -1,0 +1,20 @@
+{
+  "toloka_test": {
+    "box_map50": 0.995,
+    "box_map50_95": 0.9112,
+    "mask_map50": 0.995,
+    "mask_map50_95": 0.8509,
+    "mask_precision": 0.9991,
+    "mask_recall": 0.9947
+  },
+  "ceml": {
+    "box_map50": 0.9559,
+    "box_map50_95": 0.4052,
+    "mask_map50": 0.9409,
+    "mask_map50_95": 0.4035,
+    "mask_precision": 0.9676,
+    "mask_recall": 0.9211
+  },
+  "cpu_latency_ms": 83.0,
+  "imgsz": 640
+}
