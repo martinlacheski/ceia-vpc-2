@@ -37,13 +37,17 @@ class MeterResult:
 
 
 def read_meter(image: np.ndarray, segment: Segmenter, detect: DigitDetector,
-               classify: MeterClassifier | None = None, rectified: bool = True) -> MeterResult:
+               classify: MeterClassifier | None = None, rectified: bool = True,
+               allow_flip: bool = True) -> MeterResult:
     """Lee un medidor a partir de la foto (BGR).
 
     Con `classify`, el modelo de medidor predicho decide cuántos dígitos son m³ y cuántos
     fracción; si el clasificador duda (probabilidad < MIN_MODEL_PROB), decide el color.
     Con `rectified=False` el visor se recorta por su caja alineada a los ejes, sin enderezar
     (línea de base del experimento principal).
+    Con `allow_flip=False` no se prueba el visor girado 180°: se lee tal como quedó en la foto.
+    Sirve para medidores que se fotografían siempre derechos (energía, en pared o pilar), donde
+    los dígitos de 7 segmentos girados siguen pareciendo dígitos y la confianza no decide bien.
     """
     polygon = segment(image)
     if polygon is None or len(polygon) < 3:
@@ -52,13 +56,10 @@ def read_meter(image: np.ndarray, segment: Segmenter, detect: DigitDetector,
     crop = rectify(image, polygon, pad=CROP_PAD)[0] if rectified else bbox_crop(image, polygon, pad=CROP_PAD)
     turned = np.ascontiguousarray(crop[::-1, ::-1])
     upright = _with_fraction(assemble_reading(detect(crop)), crop)
-    flipped_reading = _with_fraction(assemble_reading(detect(turned)), turned)
-    # La fracción roja va siempre a la derecha: si solo una orientación la muestra así, es esa.
-    # Si no decide el color, decide la confianza del detector.
-    if (upright.red_from is None) != (flipped_reading.red_from is None):
-        reading, flipped = (upright, False) if upright.red_from is not None else (flipped_reading, True)
+    if not allow_flip:
+        reading, flipped = upright, False
     else:
-        reading, flipped = best_orientation(upright, flipped_reading)
+        reading, flipped = _choose_orientation(upright, _with_fraction(assemble_reading(detect(turned)), turned))
 
     meter_model = None
     if classify is not None:
@@ -67,6 +68,14 @@ def read_meter(image: np.ndarray, segment: Segmenter, detect: DigitDetector,
             meter_model = label
             reading = replace(reading, red_from=fraction_start(len(reading.digits), label))
     return MeterResult(reading, np.asarray(polygon), turned if flipped else crop, flipped, meter_model)
+
+
+def _choose_orientation(upright: Reading, flipped: Reading) -> tuple[Reading, bool]:
+    """La fracción roja va siempre a la derecha: si solo una orientación la muestra así, es esa.
+    Si no decide el color, decide la confianza del detector."""
+    if (upright.red_from is None) != (flipped.red_from is None):
+        return (upright, False) if upright.red_from is not None else (flipped, True)
+    return best_orientation(upright, flipped)
 
 
 def _with_fraction(reading: Reading, crop: np.ndarray) -> Reading:

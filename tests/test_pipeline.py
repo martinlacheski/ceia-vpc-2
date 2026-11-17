@@ -44,6 +44,16 @@ def test_upside_down_display_is_read_in_the_flipped_orientation():
     assert result.reading.mean_confidence == 0.9
 
 
+def test_without_flip_the_display_is_read_as_photographed():
+    # Medidores que se fotografían siempre derechos (energía, en pared o pilar): los dígitos de
+    # 7 segmentos girados 180° siguen pareciendo dígitos, así que la confianza no sirve para elegir.
+    image = image_with_marker()[::-1, ::-1].copy()
+    polygon = np.array([[400, 300]]) - POLYGON
+    result = read_meter(image, lambda img: polygon, detector_reading("00348"), allow_flip=False)
+    assert result.flipped is False
+    assert result.reading.mean_confidence == 0.3
+
+
 def test_no_display_gives_empty_result():
     result = read_meter(image_with_marker(), lambda img: None, detector_reading("1"))
     assert result.reading.text == "" and result.polygon is None and result.crop is None
