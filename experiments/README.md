@@ -104,6 +104,7 @@ Muestra de prueba: 201 fotos de energía verificadas a mano (`muestra=si` en `da
 | Toloka test, máscara mAP50-95 | 0,847 | 0,851 |
 | CEML agua, recall / mAP50-95 | 0,911 / 0,434 | 0,921 / 0,404 |
 | Muestra de energía, máscara mAP50 | 0,776 | 0,995 |
+| Muestra de energía, Dice por foto / sin visor | 0,621 / 23 % | 0,951 / 0 % |
 
 **Clasificador de formato** `meter_layout_agua_energia`: MobileNetV3-small con agua y energía juntos (1107 fotos, 10 formatos), validación cruzada de 5 folds: exactitud 99,37 %, F1 macro 0,967.
 
@@ -140,4 +141,5 @@ Camino desde el pipeline de agua (lectura exacta en la muestra): 18,9 % → 16,9
 - **C frente a B**: 1024 px sube el recall en CEML a 0,931, pero duplica la latencia y baja el mAP50-95 en CEML (0,434 → 0,401).
 
 - La métrica que más importa para el pipeline es el **recall** en CEML: un visor no detectado es una lectura perdida.
+- **Dice e IoU por foto** (`scripts/evaluate_seg_dice.py`, `dice.json` de cada experimento): en CEML agua, A 0,786 / B 0,765 / C 0,763 de Dice, con 11,1 %, 8,0 % y 7,7 % de fotos sin visor. A tiene mejor contorno pero pierde más visores; por eso se mantiene B.
 - Parte de la caída en mAP50-95 puede deberse a criterios de borde distintos entre los polígonos de Toloka (manuales) y los de CEML (SAM 3 con revisión manual); la caída en mAP50 es menos sensible a ese efecto.

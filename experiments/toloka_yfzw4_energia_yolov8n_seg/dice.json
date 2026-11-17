@@ -1,0 +1,15 @@
+{
+  "ceml_agua": {
+    "fotos": 324,
+    "dice": 0.7603,
+    "iou": 0.6535,
+    "sin_visor": 0.071
+  },
+  "ceml_energia_muestra": {
+    "fotos": 201,
+    "dice": 0.9511,
+    "iou": 0.9116,
+    "sin_visor": 0.0
+  },
+  "imgsz": 640
+}
