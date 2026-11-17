@@ -4,6 +4,9 @@ Roboflow renombra las imágenes (agua_..._jpg.rf.<hash>.jpg) y el auto-label a
 veces agrega fragmentos espurios además del visor. Este script:
   - recupera el nombre original de cada imagen (campo extra.name);
   - conserva un solo polígono por imagen, el de mayor área (el visor);
+    con --merge, en cambio, une todos los polígonos en su envolvente convexa
+    (medidores de rodillos con las ruedas separadas, donde el auto-label da un
+    polígono por rueda; los polígonos fuera del visor se borran al revisar);
   - escribe las etiquetas en formato YOLO-seg en <out>/labels/<nombre>.txt;
   - escribe un COCO limpio en <out>/annotations.coco.json (para Mask R-CNN).
 
@@ -12,6 +15,8 @@ Roboflow se exporta sin redimensionar.
 
 Uso:
   python scripts/import_ceml_labels.py --coco data/raw/ceml_roboflow/train/_annotations.coco.json
+  python scripts/import_ceml_labels.py --coco data/raw/ceml_energia_roboflow/train/_annotations.coco.json \
+      --out data/ceml_energia --merge
 """
 
 import argparse
@@ -31,10 +36,43 @@ def to_yolo(polygon: list[float], width: int, height: int) -> str:
     return "0 " + " ".join(f"{c:.6g}" for c in coords)
 
 
+def convex_hull(points: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Envolvente convexa en sentido antihorario (cadena monótona de Andrew)."""
+    points = sorted(set(points))
+    if len(points) < 3:
+        return points
+
+    def half(seq):
+        chain = []
+        for p in seq:
+            while len(chain) >= 2 and (
+                (chain[-1][0] - chain[-2][0]) * (p[1] - chain[-2][1])
+                - (chain[-1][1] - chain[-2][1]) * (p[0] - chain[-2][0])
+            ) <= 0:
+                chain.pop()
+            chain.append(p)
+        return chain[:-1]
+
+    return half(points) + half(reversed(points))
+
+
+def merge_annotations(anns: list[dict]) -> dict:
+    """Une los polígonos de una imagen en uno solo (su envolvente convexa), con área y caja."""
+    points = [(x, y) for a in anns for seg in a["segmentation"] for x, y in zip(seg[::2], seg[1::2])]
+    hull = convex_hull(points)
+    xs, ys = [p[0] for p in hull], [p[1] for p in hull]
+    area = abs(sum(xs[i] * ys[i - 1] - xs[i - 1] * ys[i] for i in range(len(hull)))) / 2
+    first = min(anns, key=lambda a: a["id"])
+    return {**first, "segmentation": [[c for p in hull for c in p]], "area": area,
+            "bbox": [min(xs), min(ys), max(xs) - min(xs), max(ys) - min(ys)]}
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--coco", type=Path, required=True)
     parser.add_argument("--out", type=Path, default=Path("data/ceml"))
+    parser.add_argument("--merge", action="store_true",
+                        help="unir todos los polígonos de cada imagen en vez de quedarse con el mayor")
     args = parser.parse_args()
 
     coco = json.loads(args.coco.read_text(encoding="utf-8"))
@@ -55,8 +93,11 @@ def main() -> None:
         anns = by_image.get(image["id"])
         if not anns:
             continue
-        best = max(anns, key=lambda a: a["area"])
-        dropped += len(anns) - 1
+        if args.merge:
+            best = merge_annotations(anns)
+        else:
+            best = max(anns, key=lambda a: a["area"])
+            dropped += len(anns) - 1
         name = image.get("extra", {}).get("name", image["file_name"])
 
         line = to_yolo(best["segmentation"][0], image["width"], image["height"])
