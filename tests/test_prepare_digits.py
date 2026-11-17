@@ -100,3 +100,58 @@ def test_several_sources_go_to_one_dataset_with_prefixed_names(tmp_path):
     run_many([make_yfzw4(tmp_path / "agua"), make_yfzw4(tmp_path / "lcd")], out)
     assert sorted(p.name for p in (out / "images" / "train").glob("*.jpg")) == ["agua_m.jpg", "lcd_m.jpg"]
     assert sorted(p.name for p in (out / "labels" / "train").glob("*.txt")) == ["agua_m.txt", "lcd_m.txt"]
+
+
+def make_crops(root: Path, meters: int = 30) -> Path:
+    """Visores de energía ya recortados (data/ceml_energia): dos fotos por medidor, una en la muestra."""
+    (root / "digits" / "images").mkdir(parents=True)
+    (root / "digits" / "labels").mkdir(parents=True)
+    readings, metadata = ["file,muestra"], ["file,month,route,meter_id"]
+    for m in range(meters):
+        for month in ("2018-07", "2018-08"):
+            name = f"energia_{month}_r1_m{m:04d}.jpg"
+            metadata.append(f"{name},{month},1,{m:04d}")
+            # el medidor 0 está en la muestra de prueba (en 2018-08): sus dos fotos quedan afuera
+            readings.append(f"{name},{'si' if (m == 0 and month == '2018-08') else ''}")
+            Image.new("RGB", (120, 40), (90, 90, 90)).save(root / "digits" / "images" / name)
+            (root / "digits" / "labels" / name.replace(".jpg", ".txt")).write_text("3 0.5 0.5 0.1 0.8\n")
+    (root / "readings.csv").write_text("\n".join(readings) + "\n")
+    (root / "metadata.csv").write_text("\n".join(metadata) + "\n")
+    return root
+
+
+def test_crops_go_to_train_and_val_by_meter_without_the_test_sample_meters(tmp_path):
+    out = tmp_path / "out"
+    subprocess.run([sys.executable, str(SCRIPT), "--src", str(make_yfzw4(tmp_path / "yfzw4")),
+                    "--crops", str(make_crops(tmp_path / "ceml_energia")), "--out", str(out)],
+                   capture_output=True, text=True, check=True)
+
+    split_of = {}
+    for split in ("train", "val", "test"):
+        for p in (out / "images" / split).glob("ceml_energia_*.jpg"):
+            split_of[p.name] = split
+            assert (out / "labels" / split / p.with_suffix(".txt").name).read_text() == "3 0.5 0.5 0.1 0.8\n"
+    assert not any(name.endswith("m0000.jpg") for name in split_of)  # medidor de la muestra
+    assert len(split_of) == 58
+    assert "test" not in split_of.values()  # el test de energía es la muestra, de punta a punta
+    assert "val" in split_of.values() and "train" in split_of.values()
+    for m in range(1, 30):  # las dos fotos de un medidor van al mismo split
+        assert split_of[f"ceml_energia_energia_2018-07_r1_m{m:04d}.jpg"] == split_of[f"ceml_energia_energia_2018-08_r1_m{m:04d}.jpg"]
+
+
+def test_skip_unreadable_leaves_out_crops_marked_ilegible_in_the_revision(tmp_path):
+    crops = make_crops(tmp_path / "ceml_energia", meters=5)
+    names = sorted(p.name for p in (crops / "digits" / "images").iterdir())
+    rows = ["file,estado,etiqueta_roboflow,lectura"]
+    rows += [f"{n},{'ilegible' if 'm0001' in n else 'ok'},3,3" for n in names]
+    (crops / "digits" / "revision.csv").write_text("\n".join(rows) + "\n")
+    out = tmp_path / "out"
+    cmd = [sys.executable, str(SCRIPT), "--src", str(make_yfzw4(tmp_path / "yfzw4")), "--crops", str(crops),
+           "--out", str(out)]
+
+    subprocess.run(cmd + ["--skip-unreadable"], capture_output=True, text=True, check=True)
+    kept = sorted(p.name for p in out.glob("images/*/ceml_energia_*.jpg"))
+    assert len(kept) == 6 and not any("m0001" in n for n in kept)  # 4 medidores sin la muestra, menos m0001
+
+    subprocess.run(cmd, capture_output=True, text=True, check=True)  # sin la opción entran todos
+    assert len(list(out.glob("images/*/ceml_energia_*.jpg"))) == 8

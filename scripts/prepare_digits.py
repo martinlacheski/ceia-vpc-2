@@ -17,10 +17,22 @@ Uso: python scripts/prepare_digits.py [--src data/raw/roboflow_water_meter] [--o
      python scripts/prepare_digits.py --src data/raw/roboflow_water_meter \
          --src data/raw/energia/meter-digits-5srka --src data/raw/energia/meter-digits-frvqn \
          --out data/processed/digits_mix
+     python scripts/prepare_digits.py --src data/raw/roboflow_water_meter \
+         --src data/raw/energia/meter-digits-5srka --src data/raw/energia/meter-digits-frvqn \
+         --crops data/ceml_energia --out data/processed/digits_mix_energia
+
+--crops suma visores propios ya recortados y etiquetados (<raíz>/digits/, ver
+scripts/import_digit_labels.py), sin volver a recortarlos. Quedan afuera las fotos de la muestra de
+prueba (muestra=si en readings.csv) y las demás fotos de esos medidores, porque la muestra es el
+test de punta a punta. El resto se divide por medidor (metadata.csv): un VAL_SHARE va a val y lo
+demás a train, así las fotos de un mismo medidor en distintos meses quedan en el mismo split.
+Con --skip-unreadable quedan afuera los recortes marcados `ilegible` en <raíz>/digits/revision.csv.
 """
 
 import argparse
+import csv
 import shutil
+import zlib
 import sys
 from pathlib import Path
 
@@ -36,6 +48,7 @@ from prepare_seg_combined import display_polygon  # noqa: E402
 
 SPLITS = {"train": "train", "valid": "val", "test": "test"}
 PAD = 0.05  # margen del recorte; el visor derivado ya trae su propio margen
+VAL_SHARE = 10  # --crops: 1 de cada VAL_SHARE medidores va a val
 
 
 def digit_classes(src: Path) -> dict[int, int]:
@@ -90,9 +103,14 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--src", type=Path, action="append",
                         help="dataset con dígitos anotados (se puede repetir); por defecto yfzw4")
+    parser.add_argument("--crops", type=Path, action="append", default=[],
+                        help="visores propios ya recortados (<raíz>/digits/), divididos por medidor")
+    parser.add_argument("--skip-unreadable", action="store_true",
+                        help="--crops: dejar afuera los recortes marcados ilegible en digits/revision.csv")
     parser.add_argument("--out", type=Path, default=ROOT / "data/processed/digits_yfzw4")
     args = parser.parse_args()
     sources = args.src or [ROOT / "data/raw/roboflow_water_meter"]
+    prefixed = len(sources) + len(args.crops) > 1
     out = args.out.resolve()
     shutil.rmtree(out, ignore_errors=True)
 
@@ -102,13 +120,41 @@ def main() -> None:
         (out / "labels" / split).mkdir(parents=True)
         kept = 0
         for src in sources:
-            kept += prepare_split(src, src_split, out, split, f"{src.name}_" if len(sources) > 1 else "")
+            kept += prepare_split(src, src_split, out, split, f"{src.name}_" if prefixed else "")
         counts[split] = kept
+    for root in args.crops:
+        for split, n in add_crops(root, out, f"{root.name}_" if prefixed else "", args.skip_unreadable).items():
+            counts[split] += n
 
     names = "\n".join(f"  {i}: '{i}'" for i in range(10))
     (out / "data.yaml").write_text(
         f"path: {out}\ntrain: images/train\nval: images/val\ntest: images/test\nnames:\n{names}\n")
     print("Recortes por split:", counts)
+
+
+def add_crops(root: Path, out: Path, prefix: str, skip_unreadable: bool = False) -> dict[str, int]:
+    """Copia los recortes de root/digits a train o val según su medidor, sin los de la muestra."""
+    with (root / "readings.csv").open(newline="", encoding="utf-8") as f:
+        sample = {r["file"] for r in csv.DictReader(f) if r.get("muestra", "").strip().lower() == "si"}
+    with (root / "metadata.csv").open(newline="", encoding="utf-8") as f:
+        meter_of = {r["file"]: r["meter_id"] for r in csv.DictReader(f)}
+    test_meters = {meter_of[name] for name in sample if name in meter_of}
+    unreadable = set()
+    if skip_unreadable:
+        with (root / "digits" / "revision.csv").open(newline="", encoding="utf-8") as f:
+            unreadable = {r["file"] for r in csv.DictReader(f) if r["estado"] == "ilegible"}
+
+    counts = {"train": 0, "val": 0}
+    for image_path in sorted((root / "digits" / "images").glob("*")):
+        meter = meter_of.get(image_path.name)
+        label_path = root / "digits" / "labels" / f"{image_path.stem}.txt"
+        if meter is None or meter in test_meters or image_path.name in unreadable or not label_path.exists():
+            continue
+        split = "val" if zlib.crc32(meter.encode()) % VAL_SHARE == 0 else "train"
+        shutil.copy2(image_path, out / "images" / split / f"{prefix}{image_path.name}")
+        shutil.copy2(label_path, out / "labels" / split / f"{prefix}{image_path.stem}.txt")
+        counts[split] += 1
+    return counts
 
 
 def prepare_split(src: Path, src_split: str, out: Path, split: str, prefix: str) -> int:
