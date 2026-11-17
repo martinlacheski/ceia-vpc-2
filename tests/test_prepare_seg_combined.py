@@ -81,3 +81,28 @@ def test_builds_combined_dataset_keeping_toloka_val_and_test(tmp_path):
     label = (out / "labels" / "train" / "yfzw4_y0.txt").read_text().split()
     assert label[0] == "0" and len(label) == 9
     assert f"path: {out.resolve()}" in (out / "data.yaml").read_text()
+
+
+def test_extra_dataset_goes_to_train_except_the_test_sample(tmp_path):
+    toloka, yfzw4 = make_tree(tmp_path)
+    energia = tmp_path / "ceml_energia"
+    (energia / "images").mkdir(parents=True)
+    (energia / "labels").mkdir()
+    (energia / "readings.csv").write_text(
+        "file,muestra,reading\nenergia_a.jpg,,\nenergia_b.jpg,si,12345.6\nenergia_c.jpg,,\n", encoding="utf-8")
+    for name in ("energia_a", "energia_b", "energia_c"):
+        Image.new("RGB", (64, 48)).save(energia / "images" / f"{name}.jpg")
+    for name in ("energia_a", "energia_b"):  # energia_c no tiene visor etiquetado
+        (energia / "labels" / f"{name}.txt").write_text("0 0.1 0.1 0.9 0.1 0.9 0.4\n")
+    out = tmp_path / "out"
+    subprocess.run(
+        [sys.executable, str(SCRIPT), "--toloka", str(toloka), "--yfzw4", str(yfzw4), "--out", str(out),
+         "--extra", str(energia)],
+        capture_output=True, text=True, check=True,
+    )
+
+    train = sorted(p.name for p in (out / "images" / "train").iterdir())
+    # Solo la foto etiquetada que no es de la muestra; val y test siguen siendo los de Toloka.
+    assert train == ["energia_a.jpg", "t_train.jpg", "yfzw4_y0.jpg", "yfzw4_y1.jpg"]
+    assert (out / "labels" / "train" / "energia_a.txt").read_text() == "0 0.1 0.1 0.9 0.1 0.9 0.4\n"
+    assert [p.name for p in (out / "images" / "test").iterdir()] == ["t_test.jpg"]
