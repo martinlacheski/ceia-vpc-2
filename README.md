@@ -14,6 +14,39 @@ Leer automáticamente el estado de medidores de agua de tipo rodillo a partir de
 
 **Experimento principal:** evaluar si segmentar y rectificar el visor mejora la lectura frente a un recorte por bounding box. Métricas: exactitud de lectura completa y CER.
 
+## Resultados
+
+Lectura de punta a punta sobre 323 fotos de campo CEML verificadas a mano (`scripts/evaluate_pipeline.py`). Todas las configuraciones usan la misma segmentación del visor (YOLOv8n-seg).
+
+| Configuración | Lectura exacta | m³ exactos | CER | Sin lectura |
+|---|---|---|---|---|
+| **A. Rectificado + YOLOv8n + clasificador de formato (final)** | **71,2 %** | **78,0 %** | **0,121** | **8,0 %** |
+| B. Rectificado + YOLOv8n + solo color | 54,7 % | 58,2 % | 0,121 | 8,0 % |
+| C. Recorte por caja + YOLOv8n + clasificador | 63,6 % | 71,8 % | 0,177 | 12,4 % |
+| D. Rectificado + YOLO11n + clasificador | 61,4 % | 73,4 % | 0,151 | 8,0 % |
+| E. Rectificado + EasyOCR + clasificador (baseline) | 0,3 % | 0,6 % | 0,899 | 16,4 % |
+
+- **Rectificar sirve** (A contra C): +7,6 puntos de lectura exacta.
+- **El clasificador de formato** (MobileNetV3-small, 98,4 % de exactitud con validación cruzada) decide dónde va el punto: +16,5 puntos frente al color solo (A contra B).
+- **Segmentación del visor**: YOLOv8n-seg supera a Mask R-CNN en las fotos de campo (máscara AP50-95 0,359 contra 0,262) y es 21 veces más rápido en CPU.
+- El pipeline final tarda 74 ms por foto en CPU.
+
+El resumen con gráficos y el pipeline paso a paso está en [notebooks/03_resultados.ipynb](notebooks/03_resultados.ipynb); el detalle de cada experimento, en [experiments/README.md](experiments/README.md); y el motivo de cada decisión, en [docs/decisiones.md](docs/decisiones.md).
+
+## Estructura del repositorio
+
+| Carpeta | Contenido |
+|---|---|
+| [src/meter_reader/](src/meter_reader/) | Pipeline de lectura: segmentación, rectificación, dígitos, formato y armado de la lectura |
+| [scripts/](scripts/) | Descarga y preparación de datos, entrenamiento y evaluación (cada script explica su uso al inicio) |
+| [notebooks/](notebooks/) | `01_eda` (análisis exploratorio), `02_entrenamiento` (Kaggle/Colab) y `03_resultados` |
+| [models/](models/) | Pesos finales de cada experimento |
+| [experiments/](experiments/) | Métricas, curvas e hiperparámetros de cada experimento |
+| [data/](data/) | Fotos de campo CEML anonimizadas con su verdad de campo; los datasets públicos se descargan en `data/raw/` |
+| [tests/](tests/) | Tests con pytest |
+| [app/](app/) | App web de toma de lecturas (ver abajo) |
+| [docs/](docs/) | Decisiones del proyecto |
+
 ## Datos
 
 Ver [data/README.md](data/README.md).
@@ -24,7 +57,20 @@ Ver [data/README.md](data/README.md).
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+pytest                      # tests del pipeline y de los scripts
 ```
+
+Las versiones de `requirements.txt` son las usadas para obtener los resultados (Python 3.12). Para GPU AMD (ROCm) o solo CPU, conviene instalar antes `torch` y `torchvision` desde el índice de PyTorch que corresponda.
+
+## Reproducir los resultados
+
+Los pesos ya están en `models/`, así que para ver los resultados alcanza con abrir `notebooks/03_resultados.ipynb`. Para rehacer todo desde cero:
+
+1. **Datos**: `python scripts/download_data.py` (requiere `ROBOFLOW_API_KEY`; ver [data/README.md](data/README.md)).
+2. **Preparación**: `python scripts/prepare_toloka.py`, `python scripts/prepare_seg_combined.py` y `python scripts/prepare_digits.py`.
+3. **Segmentación del visor y dígitos**: `notebooks/02_entrenamiento.ipynb` en Kaggle o Colab (GPU), o `scripts/train_yolo.py` y `scripts/train_maskrcnn.py` en local. Se evalúan con `scripts/evaluate_seg.py` y `scripts/evaluate_seg_coco.py`.
+4. **Clasificador de formato**: `python scripts/train_meter_model.py --target formato --name meter_layout_mnv3s` (validación cruzada de 5 folds y modelo final).
+5. **Punta a punta**: `python scripts/evaluate_pipeline.py`, que guarda `experiments/pipeline_ceml/`.
 
 ## App web de toma de lecturas
 
@@ -114,3 +160,7 @@ Una página web no elige entre GPS y Wi-Fi: pide la máxima precisión y el sist
 - Scheidl, Hernando
 - Vazquez, Diego
 
+
+## Licencia
+
+El código se distribuye bajo la licencia [AGPL-3.0](LICENSE), la misma de Ultralytics (YOLO), de la que depende el pipeline. Los datasets conservan sus propias licencias (ver [data/README.md](data/README.md)); las fotos de campo CEML son de uso académico.
