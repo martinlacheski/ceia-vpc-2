@@ -1,15 +1,18 @@
-ultralytics
-torch
-torchvision
-opencv-python
-numpy
-easyocr
-roboflow
-kaggle
-pillow
-pytest
-kagglehub
-pycocotools
-pyyaml
-pandas
-matplotlib
+# Versiones con las que se obtuvieron los resultados (Python 3.12).
+# torch y torchvision: estas versiones de PyPI traen CUDA; para GPU AMD o solo CPU,
+# instalarlas antes desde el índice de PyTorch que corresponda (https://pytorch.org/get-started/locally/).
+ultralytics==8.4.212
+torch==2.11.0
+torchvision==0.26.0
+opencv-python==5.0.0.93
+numpy==2.4.6
+pillow==12.2.0
+pyyaml==6.0.3
+pandas==3.1.1
+matplotlib==3.11.2
+pycocotools==2.0.11
+easyocr==1.7.2
+roboflow==1.7.3
+kagglehub==1.0.3
+pytest==9.2.0
+ipykernel==7.4.0
