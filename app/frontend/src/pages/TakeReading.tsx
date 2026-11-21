@@ -204,7 +204,8 @@ function AnalysisPanel(props: {
             autoComplete="off"
             value={value}
             placeholder="00000"
-            onChange={(e) => onChange(e.target.value.replace(/[^\d.]/g, ''))}
+            // El teclado numérico en español ofrece coma decimal: se convierte en punto.
+            onChange={(e) => onChange(e.target.value.replace(/,/g, '.').replace(/[^\d.]/g, ''))}
           />
           {a.confidence !== null && a.reading !== null && (
             <span className="text-sm text-muted-foreground">Confianza del modelo: {Math.round(a.confidence * 100)}%</span>

@@ -170,7 +170,7 @@ function ReviewForm({ reading, onReviewed }: { reading: Reading; onReviewed: (re
           className="w-40"
           inputMode="decimal"
           value={value}
-          onChange={(e) => setValue(e.target.value.trim())}
+          onChange={(e) => setValue(e.target.value.trim().replace(/,/g, '.'))}
           aria-invalid={!valid}
         />
         <Button type="submit" disabled={!valid || saving}>

@@ -266,6 +266,26 @@ describe('panel de administración', () => {
     expect(calls.filter((c) => c.url === '/api/readings?limit=20&offset=0').length).toBeGreaterThan(1)
   })
 
+  it('el admin puede escribir la corrección con coma decimal', async () => {
+    const pending = { ...baseReading, id: 1, corrected: false, confidence: 0.3 }
+    const reviewed = {
+      ...pending,
+      final_value: '01240.5',
+      review: { value: '01240.5', reviewed_by: { id: 1, full_name: 'Admin Uno' }, reviewed_at: '2026-01-02T10:00:00Z' },
+    }
+    const calls = adminApi([pending], { 'POST /api/readings/1/review': { json: reviewed } })
+    renderApp('/admin/historial')
+    const user = userEvent.setup()
+    await user.click(await screen.findByRole('button', { name: 'Ver foto de la lectura 1' }))
+    const dialog = await screen.findByRole('dialog')
+    const input = within(dialog).getByLabelText('Valor revisado')
+    await user.clear(input)
+    await user.type(input, '01240,5')
+    expect(input).toHaveValue('01240.5')
+    await user.click(within(dialog).getByRole('button', { name: 'Guardar corrección' }))
+    expect(calls.find((c) => c.method === 'POST')?.body).toEqual({ value: '01240.5' })
+  })
+
   it('una lectura revisada muestra el valor final, la marca "revisada" y no ofrece revisar de nuevo', async () => {
     adminApi([
       {
@@ -366,6 +386,26 @@ describe('tomar lectura', () => {
     expect(await screen.findByText(/corregida/i)).toBeInTheDocument()
     expect(screen.getByText(/Ubicación de la foto: -34\.60000, -58\.40000 \(±8 m\)/)).toBeInTheDocument()
     expect(screen.queryByText(/lejos del medidor/i)).not.toBeInTheDocument()
+  })
+
+  it('acepta la coma decimal del teclado numérico y la envía como punto', async () => {
+    const calls = mockApi({
+      'GET /api/auth/me': { json: reader },
+      'GET /api/meters/5': { json: meter },
+      'POST /api/meters/5/analyze': { json: analysis },
+      'POST /api/meters/5/readings': { status: 201, json: { ...saved, value: '048722.3' } },
+    })
+    mockGps('denied')
+    renderApp('/meters/5/read')
+    const user = userEvent.setup()
+    await user.upload(await screen.findByLabelText(/Foto del medidor/), new File(['x'], 'foto.jpg', { type: 'image/jpeg' }))
+    const input = await screen.findByLabelText('Lectura')
+    await user.clear(input)
+    await user.type(input, '048722,3')
+    expect(input).toHaveValue('048722.3')
+    await user.click(screen.getByRole('button', { name: 'Confirmar lectura' }))
+    await waitFor(() => expect(calls.some((c) => c.url === '/api/meters/5/readings')).toBe(true))
+    expect(calls.find((c) => c.url === '/api/meters/5/readings')!.body).toMatchObject({ value: '048722.3' })
   })
 
   it.each([
