@@ -135,6 +135,28 @@ Camino desde el pipeline de agua (lectura exacta en la muestra): 18,9 % → 16,9
 - **Orientación**: con giro, 78 de 162 errores eran lecturas al revés. En energía no hay fracción roja que decida y los 7 segmentos girados siguen pareciendo dígitos; leer siempre sin girar iguala al oráculo. En agua sí hace falta (medidores en el piso).
 - **Agua con E3**: 65,2 % contra 71,2 % con `digits_yolov8n`, así que el detector es por servicio.
 
+## Etapa 6: separador decimal por los huecos entre dígitos
+
+El clasificador de formato (etapa 3) reconoce el modelo de medidor y deduce dónde va el punto, así que solo sirve para los modelos con los que se entrenó. Para no depender del modelo, `scripts/train_gap_model.py` entrena una CNN binaria (MobileNetV3-small) sobre cada hueco entre dos dígitos vecinos del visor rectificado: el recorte va del centro de un dígito al del siguiente y la pregunta es si ahí hay un separador decimal (el punto de un LCD, el recuadro o el color del último rodillo). Las etiquetas salen del formato ya anotado (`modelo` en `readings.csv`) y de las cajas de los dígitos de `data/ceml_energia/digits/`; no hace falta marcar el punto a mano. Quedan afuera los medidores de la muestra de prueba.
+
+**Generalización a modelos no vistos**: validación dejando afuera un modelo de medidor entero por vez (12 modelos, 483 fotos). Acierto = posición del decimal correcta (o ninguno, si no hay).
+
+| Modelo dejado afuera (fotos) | Solo CEML (`gap_energia_mnv3s`) | + LCD públicos con el punto (`gap_energia_lcd_mnv3s`) |
+|---|---|---|
+| elster_a100_6_1, LCD (139) | 29,5 % | 74,8 % |
+| abb_5_1, rodillos (101) | 80,2 % | 85,1 % |
+| generico_5_1, rodillos (107) | 88,8 % | 93,5 % |
+| galileo_5_1, rodillos (46) | 91,3 % | 93,5 % |
+| ampy_mono_6_1, LCD (23) | 60,9 % | 87,0 % |
+| elster_m0507_5_1, rodillos (14) | 57,1 % | 35,7 % |
+| **Total** | **64,8 %** | **81,4 %** |
+
+Los LCD públicos son 1713 fotos de `meter-digits-5srka` con un único punto anotado entre dos dígitos (`--dot-data`); solo entrenan. Sin ellos, al dejar afuera el Elster A100 casi no quedan LCD en el entrenamiento y el modelo no aprende el punto: la mejora viene de la diversidad de los datos, no de la arquitectura. Por tecnología: rodillos 84,9 %, LCD 74,5 %. Casi todo el error es no poner punto (71 fotos); el punto en el lugar equivocado ocurre en 19.
+
+Referencia: la regla fija "el último dígito es el decimal" acierta el 96,9 % en esta flota (casi todos los modelos tienen un decimal), pero no es visión y falla en cualquier modelo con otra disposición.
+
+**En el pipeline** (`read_meter(..., gaps=...)`), como respaldo del clasificador de formato: decide cuando este duda (probabilidad < 0,5) y corrige un formato sin fracción cuando un hueco muestra el punto con probabilidad ≥ 0,9 (`GAP_OVERRIDE_PROB`). En la muestra de prueba los huecos decidieron en 2 fotos y la exactitud queda en 66,7 % (configuración F de `scripts/evaluate_pipeline.py --gap-model`, en `experiments/pipeline_ceml_energia_huecos/`); usar siempre los huecos la baja a 60,2 %. En fotos tomadas con la app de medidores nuevos, el respaldo ubicó el decimal en dos casos donde el clasificador no lo hacía: uno con el formato dudoso (p = 0,40) y otro con un formato sin fracción asignado con seguridad (p = 0,93).
+
 ## Notas
 
 - **B frente a A**: el visor derivado de water-meter-dataset sube el recall en CEML de 0,867 a 0,911 y el mAP50 de 0,858 a 0,937. En Toloka baja algo el mAP50-95 (0,877 → 0,847), esperable porque el visor derivado sigue el contorno de los dígitos y no el marco anotado en Toloka.

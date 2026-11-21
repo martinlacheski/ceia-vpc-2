@@ -9,7 +9,7 @@ Leer automáticamente el estado de medidores de agua (rodillos) y de energía (r
 1. **Segmentación de instancia del visor**: YOLOv8n-seg vs Mask R-CNN.
 2. **Rectificación**: se ajusta un rectángulo rotado mínimo a la máscara y se endereza el visor con una transformación afín (`src/meter_reader/rectify.py`).
 3. **Detección de dígitos**: YOLOv8 con una clase por dígito (0–9); la lectura se obtiene ordenando las detecciones.
-4. **m³ y fracción**: cada modelo de medidor tiene una cantidad fija de rodillos de m³ (lo que se factura) y de fracción. Una CNN (MobileNetV3, transfer learning) clasifica el formato a partir del visor con su entorno (logo, marco) y fija dónde va el punto (`src/meter_reader/layout.py`, `scripts/train_meter_model.py`); si duda, los dígitos rojos se separan de los negros por el exceso de rojo de cada caja (`src/meter_reader/color.py`). La lectura queda como `00053.25`.
+4. **m³ y fracción**: cada modelo de medidor tiene una cantidad fija de rodillos de m³ (lo que se factura) y de fracción. Una CNN (MobileNetV3, transfer learning) clasifica el formato a partir del visor con su entorno (logo, marco) y fija dónde va el punto (`src/meter_reader/layout.py`, `scripts/train_meter_model.py`); si duda, los dígitos rojos se separan de los negros por el exceso de rojo de cada caja (`src/meter_reader/color.py`). En energía, donde no hay fracción roja, decide en cambio un clasificador de los huecos entre dígitos, que busca el separador (el punto de un LCD, el recuadro o el color del último rodillo) sin conocer el modelo de medidor (`src/meter_reader/gaps.py`, `scripts/train_gap_model.py`). La lectura queda como `00053.25`.
 5. **Baseline**: OCR genérico (EasyOCR) sobre el mismo recorte.
 
 **Experimento principal:** evaluar si segmentar y rectificar el visor mejora la lectura frente a un recorte por bounding box. Métricas: exactitud de lectura completa y CER.
@@ -48,6 +48,7 @@ El mismo pipeline se extendió a los medidores de energía de la cooperativa (ro
 - Sin fracción roja, el color no ubica el punto: el clasificador de formato es imprescindible (A contra B).
 - Partiendo del pipeline de agua, la lectura exacta en energía pasó de 18,9 % a 66,7 %: segmentador con energía, leer sin giro de 180° (se fotografían derechos), clasificador reentrenado y, el salto mayor, el detector de dígitos con 483 recortes de energía etiquetados.
 - La app elige los modelos según el servicio de cada medidor; agua conserva los de la tabla anterior.
+- **Separador decimal en modelos no vistos**: el clasificador de formato solo conoce los medidores con los que se entrenó. Un clasificador de los huecos entre dígitos, evaluado dejando afuera un modelo de medidor entero por vez, ubica bien el decimal en el 81,4 % de las fotos (64,8 % sin los LCD públicos con el punto anotado). En la app actúa como respaldo: cuando el clasificador de formato duda, o asegura que no hay decimal y un hueco muestra el punto con probabilidad ≥ 0,9. En la muestra de prueba no cambia la exactitud (66,7 %); corrige medidores que el clasificador no reconoce (ver `experiments/README.md`, etapa 6).
 
 ## Estructura del repositorio
 
@@ -93,7 +94,8 @@ Los pesos ya están en `models/`, así que para ver los resultados alcanza con a
 2. **Preparación**: `python scripts/prepare_toloka.py`, `python scripts/prepare_seg_combined.py` y `python scripts/prepare_digits.py`. Para energía, `prepare_seg_combined.py --extra data/ceml_energia` y `prepare_digits.py` con los LCD públicos y `--crops data/ceml_energia` (los comandos exactos están en `notebooks/02_entrenamiento.ipynb`, sección 3).
 3. **Segmentación del visor y dígitos**: `notebooks/02_entrenamiento.ipynb` en Kaggle o Colab (GPU), o `scripts/train_yolo.py` y `scripts/train_maskrcnn.py` en local. Se evalúan con `scripts/evaluate_seg.py` y `scripts/evaluate_seg_coco.py`.
 4. **Clasificador de formato**: `python scripts/train_meter_model.py --target formato --name meter_layout_mnv3s` para agua y `--name meter_layout_agua_energia --extra-data data/ceml_energia` para agua y energía (validación cruzada de 5 folds y modelo final).
-5. **Punta a punta**: `python scripts/evaluate_pipeline.py` (agua, guarda `experiments/pipeline_ceml/`) y, para energía, con `--no-flip` y los modelos de energía (comando completo en el docstring del script; guarda `experiments/pipeline_ceml_energia/`).
+5. **Clasificador de huecos** (separador decimal, energía): `python scripts/train_gap_model.py --name gap_energia_lcd_mnv3s --dot-data data/raw/energia/meter-digits-5srka` (validación dejando afuera un modelo de medidor por vez y modelo final).
+6. **Punta a punta**: `python scripts/evaluate_pipeline.py` (agua, guarda `experiments/pipeline_ceml/`) y, para energía, con `--no-flip` y los modelos de energía (comando completo en el docstring del script; guarda `experiments/pipeline_ceml_energia/`).
 
 Los notebooks se pueden ejecutar desde la terminal con `jupyter nbconvert --to notebook --execute --inplace notebooks/03_resultados.ipynb`.
 

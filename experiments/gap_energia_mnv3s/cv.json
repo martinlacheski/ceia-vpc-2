@@ -1,0 +1,70 @@
+{
+  "photos": 483,
+  "accuracy": 0.648,
+  "accuracy_with_fraction": 0.6496,
+  "accuracy_without_fraction": 0.6,
+  "per_model": {
+    "abb_5_1": {
+      "photos": 101,
+      "accuracy": 0.802
+    },
+    "actaris_6_0": {
+      "photos": 13,
+      "accuracy": 0.5385
+    },
+    "ampy_mono_6_1": {
+      "photos": 23,
+      "accuracy": 0.6087
+    },
+    "ampy_tri_6_0": {
+      "photos": 2,
+      "accuracy": 1.0
+    },
+    "elster_5_1": {
+      "photos": 12,
+      "accuracy": 0.4167
+    },
+    "elster_a100_6_1": {
+      "photos": 139,
+      "accuracy": 0.295
+    },
+    "elster_a1052_5_1": {
+      "photos": 15,
+      "accuracy": 0.4667
+    },
+    "elster_m0507_5_1": {
+      "photos": 14,
+      "accuracy": 0.5714
+    },
+    "galileo_5_1": {
+      "photos": 46,
+      "accuracy": 0.913
+    },
+    "generico_5_1": {
+      "photos": 107,
+      "accuracy": 0.8879
+    },
+    "landis_5_1": {
+      "photos": 9,
+      "accuracy": 1.0
+    },
+    "schlumberger_5_1": {
+      "photos": 2,
+      "accuracy": 1.0
+    }
+  },
+  "cv": "modelo",
+  "skipped": {
+    "muestra de prueba": 16
+  },
+  "arch": "mobilenet_v3_small",
+  "epochs": 15,
+  "lr": 0.001,
+  "batch": 32,
+  "seed": 0,
+  "patch_size": [
+    64,
+    96
+  ],
+  "skip_unreadable": false
+}

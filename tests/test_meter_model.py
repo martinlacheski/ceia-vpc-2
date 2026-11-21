@@ -22,3 +22,18 @@ def test_load_classifier_returns_a_trained_class_and_its_probability(tmp_path):
     label, probability = load_classifier(weights)(np.zeros((192, 384, 3), dtype=np.uint8))
     assert label in classes
     assert 0 < probability <= 1
+
+
+def test_load_gap_classifier_gives_one_probability_per_gap(tmp_path):
+    from meter_reader.gaps import load_gap_classifier
+    from meter_reader.reading import Digit
+
+    weights = tmp_path / "huecos.pt"
+    torch.save({"arch": "mobilenet_v3_small", "patch_size": [64, 96],
+                "state_dict": build_model("mobilenet_v3_small", 2, pretrained=False).state_dict()}, weights)
+    gaps = load_gap_classifier(weights)
+    crop = np.zeros((60, 200, 3), dtype=np.uint8)
+    digits = tuple(Digit(i, 0.9, x, 10, x + 20, 50) for i, x in enumerate([10, 50, 90, 130]))
+    probs = gaps(crop, digits)
+    assert len(probs) == 3 and all(0 <= p <= 1 for p in probs)
+    assert list(gaps(crop, digits[:1])) == []  # un solo dígito: no hay huecos

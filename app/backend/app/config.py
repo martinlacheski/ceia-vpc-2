@@ -30,6 +30,8 @@ class Settings:
     energy_seg_weights: Path = REPO_ROOT / "models" / "toloka_yfzw4_energia_yolov8n_seg.pt"
     energy_digit_weights: Path = REPO_ROOT / "models" / "digits_mix_energia_yolov8n.pt"
     energy_meter_model_weights: Path = REPO_ROOT / "models" / "meter_layout_agua_energia.pt"
+    # Clasificador de huecos (meter_reader/gaps.py): ubica el punto cuando el de formato duda
+    energy_gap_weights: Path = REPO_ROOT / "models" / "gap_energia_lcd_mnv3s.pt"
     # Solo demo: cambiar SECRET_KEY y DEMO_PASSWORD en cualquier despliegue público.
     # Almacenamiento S3 (SeaweedFS en compose). Sin endpoint se usa el disco (data_dir).
     s3_endpoint: str | None = None
@@ -59,6 +61,7 @@ class Settings:
             energy_digit_weights=Path(env("ENERGY_DIGIT_WEIGHTS", str(defaults.energy_digit_weights))),
             energy_meter_model_weights=Path(env("ENERGY_METER_MODEL_WEIGHTS",
                                                 str(defaults.energy_meter_model_weights))),
+            energy_gap_weights=Path(env("ENERGY_GAP_WEIGHTS", str(defaults.energy_gap_weights))),
             s3_endpoint=env("S3_ENDPOINT") or None,
             s3_access_key=env("S3_ACCESS_KEY", defaults.s3_access_key),
             s3_secret_key=env("S3_SECRET_KEY", defaults.s3_secret_key),
@@ -77,3 +80,7 @@ class Settings:
         if service == "energy":
             return self.energy_seg_weights, self.energy_digit_weights, self.energy_meter_model_weights
         return self.seg_weights, self.digit_weights, self.meter_model_weights
+
+    def gap_weights(self, service: str) -> Path | None:
+        """Clasificador de huecos del servicio; solo energía tiene uno (agua decide por el color)."""
+        return self.energy_gap_weights if service == "energy" else None

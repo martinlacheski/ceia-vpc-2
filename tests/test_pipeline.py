@@ -130,6 +130,55 @@ def test_unsure_meter_model_falls_back_to_the_color_rule():
     assert result.meter_model is None
 
 
+def test_unsure_meter_model_with_gap_classifier_lets_the_gaps_place_the_decimal():
+    image = image_with_marker()
+    image[100:140, 250:300] = (60, 60, 200)  # el color diría otra cosa: decide el clasificador de huecos
+    calls = []
+
+    def gaps(crop, digits):
+        calls.append((crop.shape, len(digits)))
+        return [0.1, 0.1, 0.1, 0.1, 0.8]  # el punto va en el último hueco: 5 enteros
+
+    result = read_meter(image, lambda img: POLYGON, six_digit_detector(), lambda img: ("5_1", 0.3), gaps=gaps)
+    assert result.reading.formatted == "00348.1"
+    assert result.meter_model is None
+    assert result.decimal_from_gaps is True
+    assert calls == [(result.crop.shape, 6)]  # recibe el recorte usado y los dígitos leídos
+
+
+def test_gap_classifier_without_a_likely_gap_leaves_no_decimal():
+    result = read_meter(image_with_marker(), lambda img: POLYGON, six_digit_detector(),
+                        lambda img: ("5_1", 0.3), gaps=lambda crop, digits: [0.2] * 5)
+    assert result.reading.formatted == "003481"
+    assert result.decimal_from_gaps is True
+
+
+def test_confident_meter_model_does_not_use_the_gap_classifier():
+    def gaps(crop, digits):
+        raise AssertionError("no debería consultarse")
+
+    result = read_meter(image_with_marker(), lambda img: POLYGON, six_digit_detector(),
+                        lambda img: ("4_2", 0.9), gaps=gaps)
+    assert result.reading.formatted == "0034.81"
+    assert result.decimal_from_gaps is False
+
+
+def test_a_clear_dot_overrides_a_meter_model_without_fraction():
+    # El clasificador está seguro de que no hay decimal, pero el punto se ve en un hueco
+    result = read_meter(image_with_marker(), lambda img: POLYGON, six_digit_detector(),
+                        lambda img: ("6_0", 0.93), gaps=lambda crop, digits: [0.0, 0.0, 0.0, 0.0, 0.97])
+    assert result.reading.formatted == "00348.1"
+    assert result.meter_model == "6_0"
+    assert result.decimal_from_gaps is True
+
+
+def test_an_unclear_dot_does_not_override_a_meter_model_without_fraction():
+    result = read_meter(image_with_marker(), lambda img: POLYGON, six_digit_detector(),
+                        lambda img: ("6_0", 0.93), gaps=lambda crop, digits: [0.0, 0.0, 0.0, 0.0, 0.8])
+    assert result.reading.formatted == "003481"
+    assert result.decimal_from_gaps is False
+
+
 def test_without_classifier_the_meter_model_is_unknown():
     result = read_meter(image_with_marker(), lambda img: POLYGON, six_digit_detector())
     assert result.meter_model is None

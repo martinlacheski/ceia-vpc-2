@@ -29,6 +29,7 @@ def make_settings(tmp_path) -> Settings:
         meter_model_weights=tmp_path / "sin_clasificador.pt",
         energy_seg_weights=paths["energy_seg"], energy_digit_weights=paths["energy_digits"],
         energy_meter_model_weights=tmp_path / "sin_clasificador.pt",
+        energy_gap_weights=tmp_path / "sin_huecos.pt",
     )
 
 
@@ -69,3 +70,26 @@ def test_energy_is_read_as_photographed_and_water_tries_the_flip(tmp_path, monke
     # agua prueba el visor derecho y girado 180°; energía lo lee una sola vez, tal como está
     assert calls == {str(settings.digit_weights): 2, str(settings.energy_digit_weights): 1}
     assert energy.flipped is False and energy.display_found and water.display_found
+
+
+def test_energy_uses_the_gap_classifier_and_water_does_not(tmp_path, monkeypatch):
+    import dataclasses
+
+    import meter_reader.gaps as gaps_module
+
+    gap_weights = tmp_path / "huecos.pt"
+    gap_weights.write_bytes(b"")
+    settings = dataclasses.replace(make_settings(tmp_path), energy_gap_weights=gap_weights)
+    loaded, calls, gap_calls = [], {}, []
+    monkeypatch.setattr(pipeline, "load_models", fake_loader(loaded, calls))
+
+    def load_gap_classifier(weights):
+        gap_calls.append(("cargar", str(weights)))
+        return lambda crop, digits: gap_calls.append(("leer", len(digits))) or [0.95]
+
+    monkeypatch.setattr(gaps_module, "load_gap_classifier", load_gap_classifier)
+    reader = MeterReader(settings)
+    # sin clasificador de formato, en energía el punto lo ubica el clasificador de huecos
+    assert reader.analyze(photo_bytes(), "energy").reading == "1.2"
+    assert reader.analyze(photo_bytes(), "water").reading == "12"
+    assert gap_calls == [("cargar", str(gap_weights)), ("leer", 2)]

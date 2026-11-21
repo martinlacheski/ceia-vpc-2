@@ -34,6 +34,7 @@ ENV METER_READER_SRC=/srv/src \
     ENERGY_SEG_WEIGHTS=/srv/models/toloka_yfzw4_energia_yolov8n_seg.pt \
     ENERGY_DIGIT_WEIGHTS=/srv/models/digits_mix_energia_yolov8n.pt \
     ENERGY_METER_MODEL_WEIGHTS=/srv/models/meter_layout_agua_energia.pt \
+    ENERGY_GAP_WEIGHTS=/srv/models/gap_energia_lcd_mnv3s.pt \
     CEML_ENERGY_DIR=/srv/data/ceml_energia
 
 WORKDIR /srv/backend

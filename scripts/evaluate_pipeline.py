@@ -6,6 +6,8 @@ Compara configuraciones del pipeline sobre las mismas fotos y la misma segmentac
   C. recorte por caja + YOLOv8n + clasificador (experimento principal: ¿rectificar sirve?)
   D. rectificado + YOLO11n + clasificador
   E. rectificado + EasyOCR + clasificador (OCR genérico como línea de base)
+  F. como A, pero cuando el clasificador duda el decimal lo ubica el clasificador de huecos
+     (solo con --gap-model; ver src/meter_reader/gaps.py)
 
 El clasificador de formato se entrenó con estas mismas fotos, así que no se usa el modelo final:
 cada foto recibe su predicción out-of-fold (experiments/<clasificador>/oof.csv), hecha por un
@@ -28,6 +30,8 @@ Uso (con el entorno que tiene ultralytics, torch y easyocr, por ejemplo .venv-ro
       --images data/ceml_energia/images --seg-weights models/toloka_yfzw4_energia_yolov8n_seg.pt \
       --digits-v8 models/digits_mix_energia_yolov8n.pt --classifier meter_layout_agua_energia \
       --out experiments/pipeline_ceml_energia
+  (energía con el respaldo de huecos: lo mismo más --gap-model models/gap_energia_lcd_mnv3s.pt
+   --out experiments/pipeline_ceml_energia_huecos)
 """
 
 import argparse
@@ -49,6 +53,7 @@ CONFIGS = {
     "D": "rectificado + YOLO11n + clasificador",
     "E": "rectificado + EasyOCR + clasificador",
 }
+GAPS_CONFIG = ("F", "rectificado + YOLOv8n + clasificador + huecos (respaldo)")
 
 
 def normalize(value: str) -> str:
@@ -156,13 +161,19 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=ROOT / "experiments/pipeline_ceml")
     parser.add_argument("--no-flip", action="store_true",
                         help="no probar el visor girado 180° (medidores que se fotografían derechos, como energía)")
+    parser.add_argument("--gap-model", type=Path,
+                        help="pesos del clasificador de huecos: agrega la configuración F (respaldo del clasificador)")
     args = parser.parse_args()
+    configs = dict(CONFIGS)
+    if args.gap_model:
+        configs[GAPS_CONFIG[0]] = GAPS_CONFIG[1]
 
     import ultralytics  # noqa: F401  (antes que torch: configura los hilos de OpenMP)
     import cv2
     import easyocr
     import torch
 
+    from meter_reader.gaps import load_gap_classifier
     from meter_reader.layout import fraction_start
     from meter_reader.meter_model import load_classifier
     from meter_reader.pipeline import MIN_MODEL_PROB, load_models, read_meter
@@ -176,7 +187,9 @@ def main() -> None:
     truth = load_ground_truth(args.sheet)
     allow_flip = not args.no_flip
 
-    predictions = {key: {} for key in CONFIGS}
+    gaps = load_gap_classifier(args.gap_model, "cuda" if gpu else "cpu") if args.gap_model else None
+    gap_photos = 0  # fotos donde el clasificador dudó y decidieron los huecos
+    predictions = {key: {} for key in configs}
     for i, t in enumerate(truth, 1):
         image = cv2.imread(str(args.images / t["file"]))
         polygon = segment(image)  # la misma segmentación para todas las configuraciones
@@ -193,6 +206,11 @@ def main() -> None:
         run("B", detect=detect_v8)
         run("C", detect=detect_v8, classify=classify, rectified=False)
         run("D", detect=detect_11, classify=classify)
+        if gaps is not None:
+            with_gaps = read_meter(image, seg, detect_v8, classify, allow_flip=allow_flip, gaps=gaps)
+            gap_photos += with_gaps.decimal_from_gaps
+            predictions["F"][t["file"]] = ((with_gaps.reading.formatted, with_gaps.reading.confidence)
+                                           if with_gaps.reading.text else None)
         # E: EasyOCR sobre el mismo recorte (y orientación) que eligió el pipeline final
         if final.crop is None:
             predictions["E"][t["file"]] = None
@@ -203,7 +221,9 @@ def main() -> None:
         if i % 50 == 0:
             print(f"{i}/{len(truth)}", flush=True)
 
-    results = {key: {"configuracion": name, **score(truth, predictions[key])} for key, name in CONFIGS.items()}
+    results = {key: {"configuracion": name, **score(truth, predictions[key])} for key, name in configs.items()}
+    if gaps is not None:
+        results["F"]["fotos_decimal_por_huecos"] = gap_photos
 
     # Latencia del pipeline final en CPU (segmentación + dígitos en dos orientaciones + clasificador)
     cpu_segment, cpu_detect = load_models(str(args.seg_weights), str(args.digits_v8), device="cpu")
@@ -220,10 +240,10 @@ def main() -> None:
     (args.out / "results.json").write_text(json.dumps(results, indent=2, ensure_ascii=False), encoding="utf-8")
     with (args.out / "predictions.csv").open("w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f, lineterminator="\n")
-        writer.writerow(["file", "reading", *CONFIGS])
+        writer.writerow(["file", "reading", *configs])
         for t in truth:
             writer.writerow([t["file"], t["reading"],
-                             *((predictions[k].get(t["file"]) or ("",))[0] for k in CONFIGS)])
+                             *((predictions[k].get(t["file"]) or ("",))[0] for k in configs)])
     print(json.dumps(results, indent=2, ensure_ascii=False))
 
 

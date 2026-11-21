@@ -36,13 +36,15 @@ class _Models:
     segment: object
     detect: object = None
     classify: object = None
+    gaps: object = None
 
 
 class MeterReader:
     """Lector real, con un juego de modelos por servicio ("water" o "energy") que se carga recién
     al leer la primera foto de ese servicio. Si faltan los pesos de dígitos solo segmenta el visor
     (modo sin lectura); si falta el clasificador del modelo de medidor, la fracción se separa por
-    el color. Energía se lee sin probar el visor girado 180° (ver read_meter, allow_flip)."""
+    el color. Energía se lee sin probar el visor girado 180° (ver read_meter, allow_flip) y, si están
+    sus pesos, con el clasificador de huecos para ubicar el punto cuando el de formato duda."""
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -67,6 +69,11 @@ class MeterReader:
                 from meter_reader.meter_model import load_classifier
 
                 models.classify = load_classifier(meter_model_weights)
+            gap_weights = self.settings.gap_weights(service)
+            if gap_weights is not None and gap_weights.exists():
+                from meter_reader import gaps
+
+                models.gaps = gaps.load_gap_classifier(gap_weights)
         else:
             models = _Models(self._load_segmenter_only(seg_weights))
         self._models[service] = models
@@ -104,7 +111,7 @@ class MeterReader:
         available = models.detect is not None
         if available:
             result = pipeline.read_meter(image, models.segment, models.detect, models.classify,
-                                         allow_flip=allow_flip)
+                                         allow_flip=allow_flip, gaps=models.gaps)
             polygon, crop, flipped, reading = result.polygon, result.crop, result.flipped, result.reading
         else:
             polygon = models.segment(image)
