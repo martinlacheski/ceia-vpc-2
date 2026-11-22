@@ -68,3 +68,10 @@ def test_train_keeps_ultralytics_default_flip(monkeypatch, tmp_path):
     calls = fake_training(monkeypatch, tmp_path)
     load_module().train("segment", "yolov8n-seg.pt", "d.yaml", "seg", 1, 640, 8, 5, 42)
     assert calls["fliplr"] == 0.5
+
+
+def test_train_forwards_extra_hyperparameters(monkeypatch, tmp_path):
+    calls = fake_training(monkeypatch, tmp_path)
+    load_module().train("detect", "yolov8n.pt", "d.yaml", "digits", 1, 416, 8, 5, 42, fliplr=0.0,
+                        extra={"hsv_v": 0.5, "degrees": 5.0})
+    assert calls["hsv_v"] == 0.5 and calls["degrees"] == 5.0

@@ -11,6 +11,7 @@ Uso (para retomar una corrida interrumpida: --task segment --name <nombre> --res
 """
 
 import argparse
+import ast
 import shutil
 from pathlib import Path
 
@@ -32,10 +33,12 @@ def collect_artifacts(run_dir: Path, name: str, models_dir: Path, experiments_di
 
 
 def train(task: str, model: str, data: str, name: str, epochs: int, imgsz: int,
-          batch: int, patience: int, seed: int, fliplr: float = 0.5) -> Path:
+          batch: int, patience: int, seed: int, fliplr: float = 0.5,
+          extra: dict | None = None) -> Path:
     """Entrena con Ultralytics y devuelve la carpeta de la corrida.
 
     fliplr: probabilidad de espejado horizontal (0 para dígitos: un 2 espejado parece un 5).
+    extra: otros hiperparámetros de Ultralytics (p. ej. hsv_v, degrees, perspective, erasing).
     """
     # Se importan acá para que los tests no requieran PyTorch. ultralytics va primero: configura
     # los hilos de OpenMP al importarse y eso solo tiene efecto si torch todavía no está cargado.
@@ -47,10 +50,14 @@ def train(task: str, model: str, data: str, name: str, epochs: int, imgsz: int,
     weights = Path("weights") / model
     weights.parent.mkdir(exist_ok=True)
 
-    yolo = YOLO(str(weights))
+    if "rtdetr" in model.lower():
+        from ultralytics import RTDETR  # RT-DETR tiene su propia clase en Ultralytics
+        yolo = RTDETR(str(weights))
+    else:
+        yolo = YOLO(str(weights))
     yolo.train(
         task=task, data=data, epochs=epochs, imgsz=imgsz, batch=batch,
-        patience=patience, seed=seed, device=device, fliplr=fliplr,
+        patience=patience, seed=seed, device=device, fliplr=fliplr, **(extra or {}),
         # Ruta absoluta: con una relativa, Ultralytics la anida dentro de su runs_dir.
         project=str((Path("runs") / task).resolve()), name=name, exist_ok=True,
     )
@@ -85,7 +92,13 @@ def main() -> None:
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--fliplr", type=float, default=0.5,
                         help="probabilidad de espejado horizontal; usar 0 para dígitos")
+    parser.add_argument("--extra", action="append", default=[], metavar="CLAVE=VALOR",
+                        help="hiperparámetro extra de Ultralytics, repetible (p. ej. --extra hsv_v=0.6)")
     args = parser.parse_args()
+    extra = {}
+    for item in args.extra:
+        key, _, value = item.partition("=")
+        extra[key] = ast.literal_eval(value)
 
     if args.resume:
         run_dir = resume(args.task, args.name)
@@ -93,7 +106,7 @@ def main() -> None:
         if not (args.model and args.data):
             parser.error("--model y --data son obligatorios salvo con --resume")
         run_dir = train(args.task, args.model, args.data, args.name, args.epochs,
-                        args.imgsz, args.batch, args.patience, args.seed, args.fliplr)
+                        args.imgsz, args.batch, args.patience, args.seed, args.fliplr, extra)
     collect_artifacts(run_dir, args.name, Path("models"), Path("experiments"))
     print(f"Pesos: models/{args.name}.pt | métricas: experiments/{args.name}/")
 
