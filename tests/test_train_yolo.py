@@ -46,14 +46,18 @@ def fake_training(monkeypatch, tmp_path):
 
     class FakeYOLO:
         def __init__(self, weights):
+            calls["model_class"] = type(self).__name__
             self.trainer = types.SimpleNamespace(save_dir=str(tmp_path / "run"))
 
         def train(self, **kwargs):
             calls.update(kwargs)
 
+    class FakeRTDETR(FakeYOLO):
+        pass
+
     torch = types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: False))
     monkeypatch.setitem(sys.modules, "torch", torch)
-    monkeypatch.setitem(sys.modules, "ultralytics", types.SimpleNamespace(YOLO=FakeYOLO))
+    monkeypatch.setitem(sys.modules, "ultralytics", types.SimpleNamespace(YOLO=FakeYOLO, RTDETR=FakeRTDETR))
     monkeypatch.chdir(tmp_path)
     return calls
 
@@ -75,3 +79,17 @@ def test_train_forwards_extra_hyperparameters(monkeypatch, tmp_path):
     load_module().train("detect", "yolov8n.pt", "d.yaml", "digits", 1, 416, 8, 5, 42, fliplr=0.0,
                         extra={"hsv_v": 0.5, "degrees": 5.0})
     assert calls["hsv_v"] == 0.5 and calls["degrees"] == 5.0
+
+
+def test_train_uses_rtdetr_class_for_rtdetr_weights(monkeypatch, tmp_path):
+    calls = fake_training(monkeypatch, tmp_path)
+    load_module().train("detect", "rtdetr-l.pt", "d.yaml", "digits", 1, 416, 8, 5, 42, fliplr=0.0,
+                        extra={"hsv_v": 0.5})
+    assert calls["model_class"] == "FakeRTDETR"
+    assert calls["fliplr"] == 0.0 and calls["hsv_v"] == 0.5
+
+
+def test_train_uses_yolo_class_for_yolo_weights(monkeypatch, tmp_path):
+    calls = fake_training(monkeypatch, tmp_path)
+    load_module().train("detect", "yolov8n.pt", "d.yaml", "digits", 1, 416, 8, 5, 42, fliplr=0.0)
+    assert calls["model_class"] == "FakeYOLO"
