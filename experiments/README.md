@@ -44,13 +44,13 @@ Dataset: recortes del visor rectificado de water-meter-dataset (`scripts/prepare
 | D4 | YOLOv8m, 416 px | `digits_yolov8m` | 0,985 / 0,684 | 0,964 / 0,962 | Hecho (Kaggle, T4; paró en la época 51, mejor la 31) |
 | D5 | YOLOv8s, 640 px | `digits_yolov8s_640` | 0,982 / 0,680 | 0,960 / 0,964 | Hecho (Kaggle, T4; paró en la época 52, mejor la 32) |
 | D6 | D1 + más aumentaciones de color y geometría (`hsv_h` 0,02, `hsv_s` 0,7, `hsv_v` 0,5, `degrees` 5, `perspective` 0,0005) | `digits_yolov8n_aug` | 0,985 / 0,682 | 0,961 / 0,962 | Hecho (Kaggle, T4; paró en la época 96, mejor la 76) |
-| D7 | RT-DETR-L (transformer), 416 px, mismo protocolo que D1 | `digits_rtdetr_l` | — | — | Pendiente (Kaggle; verificado con una prueba de humo en CPU) |
+| D7 | RT-DETR-L (transformer), 416 px, batch 16, mismo protocolo que D1 | `digits_rtdetr_l` | 0,974 / 0,571 | 0,950 / 0,949 | Hecho (Kaggle, T4; paró en la época 57, mejor la 37) |
 
 El mAP50-95 por dígito va de 0,672 (`1` y `4`) a 0,707 (`5`): no hay un dígito claramente más difícil.
 
 **D2 frente a D1**: YOLO11n empata con YOLOv8n (mAP50-95 0,694 contra 0,687; más precisión y algo menos de recall) con pesos un 15 % más chicos (5,5 MB contra 6,5 MB). La diferencia está dentro de lo que cambia entre corridas; se elige entre las dos por la exactitud de lectura de punta a punta en CEML.
 
-**Ronda de modelos más grandes y más aumentaciones (D3–D6).** Se probó si más capacidad, más resolución o más aumentaciones mejoran el detector. Se compara en validación (la selección no usa CEML ni el test):
+**Ronda de modelos más grandes, más aumentaciones y otra arquitectura (D3–D7).** Se probó si más capacidad, más resolución, más aumentaciones o un detector con transformer mejoran el detector. Se compara en validación (la selección no usa CEML ni el test):
 
 | Modelo | Val mAP50-95 | Test mAP50-95 | s/época | Latencia CPU | Pesos |
 |---|---|---|---|---|---|
@@ -59,8 +59,11 @@ El mAP50-95 por dígito va de 0,672 (`1` y `4`) a 0,707 (`5`): no hay un dígito
 | D3 YOLOv8s, 416 | 0,706 | 0,681 | 50 | 96 ms | 22,5 MB |
 | D4 YOLOv8m, 416 | 0,706 | 0,684 | 109 | 220 ms | 52 MB |
 | D5 YOLOv8s, 640 | 0,707 | 0,680 | 103 | 235 ms | 22,5 MB |
+| D7 RT-DETR-L, 416 | 0,576 | 0,571 | 301 | 480 ms | 66,2 MB |
 
-Ninguna variante supera a D1 por más de 0,01 de mAP50-95 en validación (la regla fijada de antemano para pasar a evaluar en CEML): todas quedan entre 0,705 y 0,709, dentro del ruido entre corridas. Hay un techo común, probablemente por el ruido de las etiquetas más que por la capacidad. Como más tamaño y más resolución solo agregan latencia (hasta 5–6 veces) y peso, se mantiene YOLOv8n. Las latencias de D3–D6 se midieron en la CPU de Kaggle; la de D1 no se midió allí, por lo que no es comparable con las de las otras filas. RT-DETR-L (D7) queda pendiente: el notebook ya lo entrena y evalúa con el mismo protocolo.
+Ninguna variante supera a D1 por más de 0,01 de mAP50-95 en validación (la regla fijada de antemano para pasar a evaluar en CEML): D3–D6 quedan entre 0,705 y 0,709, dentro del ruido entre corridas. Hay un techo común, probablemente por el ruido de las etiquetas más que por la capacidad. Como más tamaño y más resolución solo agregan latencia (hasta 5–6 veces) y peso, se mantiene YOLOv8n. Las latencias de D3–D6 se midieron en la CPU de Kaggle; la de D1 no se midió allí, por lo que no es comparable con las de las otras filas.
+
+**D7, RT-DETR-L**: queda 0,13 por debajo de D1 en validación (0,576 contra 0,709). Detecta casi igual (mAP50 de test 0,974 contra 0,983), pero ajusta peor las cajas, que es lo que mide el mAP50-95 en los umbrales altos. Además es 12 veces más lento en CPU que YOLOv8n con aumentaciones (480 ms contra 40 ms) y pesa 10 veces más. Se entrenó con la receta de Ultralytics de D1 (`optimizer=auto`, que Ultralytics resuelve como MuSGD con `lr0` 0,01; paró por paciencia en la época 57) y no con la receta propia de RT-DETR (AdamW con tasa más baja y más épocas), por lo que no es su mejor resultado posible; aun así la brecha es grande y el costo de inferencia lo descarta para el celular.
 
 Primera prueba del pipeline completo sobre 12 fotos CEML al azar (inspección visual, sin lecturas de referencia todavía): los visores nítidos se leen bien salvo los rodillos rojos a mitad de giro; un visor invertido se resolvió con la elección de orientación; las fotos borrosas o empañadas fallan, pero con confianza mínima baja (0,25–0,51 frente a 0,69–0,85), lo que permite marcarlas para revisión manual.
 
