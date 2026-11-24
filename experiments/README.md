@@ -47,7 +47,7 @@ Dataset: recortes del visor rectificado de water-meter-dataset (`scripts/prepare
 
 El mAP50-95 por dígito va de 0,672 (`1` y `4`) a 0,707 (`5`): no hay un dígito claramente más difícil.
 
-**D2 frente a D1**: YOLO11n empata con YOLOv8n (mAP50-95 0,694 contra 0,687; más precisión y algo menos de recall) con pesos un 16 % más chicos (5,2 MB contra 6,2 MB). La diferencia está dentro de lo que cambia entre corridas; se elige entre las dos por la exactitud de lectura de punta a punta en CEML.
+**D2 frente a D1**: YOLO11n empata con YOLOv8n (mAP50-95 0,694 contra 0,687; más precisión y algo menos de recall) con pesos un 15 % más chicos (5,5 MB contra 6,5 MB). La diferencia está dentro de lo que cambia entre corridas; se elige entre las dos por la exactitud de lectura de punta a punta en CEML.
 
 **Ronda de modelos más grandes y más aumentaciones (D3–D6).** Se probó si más capacidad, más resolución o más aumentaciones mejoran el detector. Se compara en validación (la selección no usa CEML ni el test):
 
