@@ -29,6 +29,7 @@ Lectura de punta a punta sobre 323 fotos de campo CEML verificadas a mano (`scri
 - **Rectificar sirve** (A contra C): +7,6 puntos de lectura exacta. La mejora sale de los visores inclinados: con más de 15°, el recorte por caja no lee ninguna foto y rectificando se lee el 62 % (en energía, 75 %).
 - **El clasificador de formato** (MobileNetV3-small, 98,4 % de exactitud con validación cruzada) decide dónde va el punto: +16,5 puntos frente al color solo (A contra B).
 - **Segmentación del visor**: YOLOv8n-seg supera a Mask R-CNN en las fotos de campo (máscara AP50-95 0,359 contra 0,262) y es 21 veces más rápido en CPU.
+- **Detector de dígitos**: YOLOv8n se eligió por la lectura en campo (71,2 % contra 61,4 % de YOLO11n, aunque empataban en el test público). Modelos más grandes (YOLOv8s, YOLOv8m), más resolución (640 px) y más aumentaciones empatan con él en validación (mAP50-95 0,705–0,709 contra 0,709) y cuestan hasta 6 veces más en CPU. RT-DETR-L, un detector con transformer, queda 0,10 por debajo aun entrenado con su propia receta (AdamW, lr 1e-4) y es 12 veces más lento.
 - El pipeline final tarda 74 ms por foto en CPU.
 
 El resumen con gráficos y el pipeline paso a paso está en [notebooks/03_resultados.ipynb](notebooks/03_resultados.ipynb); el detalle de cada experimento, en [experiments/README.md](experiments/README.md); y el motivo de cada decisión, en [docs/decisiones.md](docs/decisiones.md).
