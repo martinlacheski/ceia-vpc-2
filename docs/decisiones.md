@@ -18,6 +18,7 @@ Registro breve de las decisiones técnicas y su motivo. Los resultados numérico
 ## Modelos
 
 - **YOLOv8n-seg sobre Mask R-CNN** para el visor: en CEML su máscara es más precisa (AP50-95 0,359 contra 0,262), es 21 veces más rápido en CPU y pesa 25 veces menos. La rectificación depende del contorno.
+- **Segmentación sobre caja orientada (OBB)** para el visor: con los mismos datos y protocolo, YOLOv8n-obb lee de punta a punta 65,5 % exacto en CEML contra 71,2 % con YOLOv8n-seg; no encuentra el visor en 41 fotos contra 26 (experimento G).
 - **Sin espejado horizontal en dígitos** (`fliplr=0`): un dígito espejado cambia de clase.
 - **YOLOv8n sobre YOLO11n para dígitos**: empatan en el test de yfzw4, pero en CEML YOLOv8n lee mejor (71,2 % contra 61,4 % de lectura exacta). Se decide por la métrica de punta a punta en el dominio real, no por el mAP.
 - **YOLOv8n y no modelos mayores para dígitos**: YOLOv8s (416 y 640 px), YOLOv8m y YOLOv8n con más aumentaciones empatan con el nano en validación (mAP50-95 0,705–0,709, ruido) y cuestan hasta 5–6 veces más latencia y 8 veces más peso. Se decidió por validación, con la regla de pasar a CEML solo si se mejoraba en más de 0,01; ninguno pasó. RT-DETR-L (transformer) queda 0,10 por debajo en validación aun con su receta propia de optimización (AdamW, lr 1e-4) y es 12 veces más lento en CPU. YOLO26n, la versión más reciente de Ultralytics, empata con YOLOv8n en validación (0,712 contra 0,709) y no pasa la regla; es algo más liviano y rápido, pero no lee mejor los dígitos. Detalle en `experiments/README.md`.

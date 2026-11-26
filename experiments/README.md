@@ -16,7 +16,7 @@ Métricas de máscara; en CEML se evalúan las 324 fotos salvo en E (validación
 | D | La mejor + augmentation de condiciones de campo (brillo, desenfoque, ruido) | — | — | — | — | Pendiente |
 | E | La mejor + fine-tuning con CEML (validación cruzada de 5 particiones por `meter_id`) | — | — | — | — | Pendiente |
 | F | Mask R-CNN (ResNet-50 FPN, COCO) con los datos de B, 640 px, 10 épocas | `toloka_yfzw4_maskrcnn` | 0,9997 / 0,843 * | 0,864 / 0,262 * | — | Hecho (Kaggle, `scripts/train_maskrcnn.py`; mejor época por mask AP50-95 en validación: la 7) |
-| G | YOLOv8n-obb con los datos de B pasados a caja orientada (`scripts/prepare_obb.py`), 640 px, 40 épocas | `toloka_yfzw4_yolov8n_obb` | — | — | — | Pendiente (Kaggle, notebook 02) |
+| G | YOLOv8n-obb con los datos de B pasados a caja orientada (`scripts/prepare_obb.py`), 640 px, 40 épocas | `toloka_yfzw4_yolov8n_obb` | 0,995 / 0,921 † | — | — | Hecho (Kaggle; mejor época por mAP50-95 en validación: la 37). Punta a punta en CEML: ver abajo |
 
 Latencia en CPU (Ryzen AI, inferencia completa por imagen, media de 50 fotos CEML): A 24 ms, B 24 ms, C 51 ms. B y C se entrenaron en Kaggle (2× T4); las métricas se recalcularon localmente con `scripts/evaluate_seg.py` y coinciden con las de Kaggle.
 
@@ -33,7 +33,19 @@ Latencia en CPU (Ryzen AI, inferencia completa por imagen, media de 50 fotos CEM
 
 En Toloka empatan. En CEML, Mask R-CNN ubica el visor igual o algo mejor a IoU 0,5 (caja AP50 0,960), pero sus máscaras son menos precisas (máscara AP50-95 0,262 contra 0,359): la cabeza de máscara predice 28 × 28 por objeto y al escalarla a un visor alargado los bordes quedan gruesos. Además es 21 veces más lenta en CPU y 25 veces más pesada. Para la rectificación importa el contorno del visor, así que se mantiene YOLOv8n-seg. Diferencias de entrenamiento a tener en cuenta: F se entrenó 10 épocas con solo espejado horizontal; B, 40 épocas con las aumentaciones de Ultralytics (mosaico, color, escala).
 
-**Caja orientada (G) contra segmentación (B).** La rectificación solo usa el rectángulo rotado mínimo del visor (`cv2.minAreaRect` sobre la máscara), así que un modelo OBB que prediga ese rectángulo directamente podría reemplazar a la segmentación. G usa las mismas imágenes y el mismo protocolo que B; cada polígono se reemplaza por su rectángulo rotado mínimo, calculado en píxeles. Sus métricas son de caja orientada y no se comparan con las de máscara de la tabla: la comparación es de punta a punta en las 323 fotos de agua CEML, cambiando solo el modelo del visor en la configuración A de la etapa 4 (`scripts/evaluate_pipeline.py --seg-weights models/toloka_yfzw4_yolov8n_obb.pt`). El pipeline acepta los dos tipos de modelo (`meter_reader.pipeline.best_polygon`).
+**Caja orientada (G) contra segmentación (B).** La rectificación solo usa el rectángulo rotado mínimo del visor (`cv2.minAreaRect` sobre la máscara), así que un modelo OBB que prediga ese rectángulo directamente podría reemplazar a la segmentación. G usa las mismas imágenes y el mismo protocolo que B; cada polígono se reemplaza por su rectángulo rotado mínimo, calculado en píxeles. Sus métricas son de caja orientada y no se comparan con las de máscara de la tabla: la comparación es de punta a punta en las 323 fotos de agua CEML, cambiando solo el modelo del visor en la configuración A de la etapa 4 (`scripts/evaluate_pipeline.py --seg-weights models/toloka_yfzw4_yolov8n_obb.pt`). El pipeline acepta los dos tipos de modelo (`meter_reader.pipeline.best_polygon`). († caja orientada, no máscara.)
+
+| Punta a punta en CEML (agua, 323 fotos), configuración A | B: segmentación | G: OBB |
+|---|---|---|
+| Lectura exacta | **71,2 %** | 65,5 % |
+| m³ exactos | **78,0 %** | 74,0 % |
+| CER | **0,121** | 0,176 |
+| Sin lectura | **8,0 %** | 12,7 % |
+| Fotos sin visor encontrado (conf. 0,25) | **26** | 41 |
+| Exacta en las 281 fotos que los dos leen | **78,6 %** | 73,7 % |
+| Latencia CPU del pipeline | **74 ms** | 81 ms |
+
+Foto por foto en A: 191 bien con los dos, 34 solo con segmentación, 16 solo con OBB. En Toloka el OBB funciona (mAP50 0,995), pero en las fotos de campo pierde el visor en 15 fotos más, y cuando lo encuentra la lectura también es algo peor. Se mantiene la segmentación. Los resultados están en `experiments/pipeline_ceml_obb/` (la referencia con segmentación se reprodujo con el código actual: 71,2 %).
 
 ## Etapa 2: detección de dígitos
 
