@@ -104,18 +104,40 @@ def _with_fraction(reading: Reading, crop: np.ndarray) -> Reading:
     return replace(reading, red_from=red_split([redness(crop, d) for d in reading.digits]))
 
 
+def best_polygon(result) -> np.ndarray | None:
+    """Contorno del visor más confiable de un resultado de Ultralytics, o None si no hay visor.
+
+    Con un modelo de segmentación es el polígono de la máscara; con uno OBB (caja orientada),
+    las 4 esquinas del rectángulo rotado. La rectificación acepta los dos.
+    """
+    obb = getattr(result, "obb", None)
+    if obb is not None:
+        if len(obb.conf) == 0:
+            return None
+        return np.asarray(_to_numpy(obb.xyxyxyxy[int(obb.conf.argmax())]), dtype=float)
+    if result.masks is None or len(result.masks.xy) == 0:
+        return None
+    return result.masks.xy[int(result.boxes.conf.argmax())]
+
+
+def _to_numpy(value):
+    """Tensor de PyTorch (en CPU o GPU) o arreglo de NumPy a arreglo de NumPy."""
+    return value.cpu().numpy() if hasattr(value, "cpu") else value
+
+
 def load_models(seg_weights: str, digit_weights: str, seg_imgsz: int = 640, digit_imgsz: int = 416,
                 conf: float = 0.25, device: str | int | None = None) -> tuple[Segmenter, DigitDetector]:
-    """Arma el segmentador y el detector a partir de pesos YOLO."""
+    """Arma el segmentador y el detector a partir de pesos YOLO.
+
+    seg_weights puede ser un modelo de segmentación (YOLOv8n-seg) o de cajas orientadas (OBB).
+    """
     from ultralytics import YOLO
 
     seg_model, digit_model = YOLO(seg_weights), YOLO(digit_weights)
 
     def segment(image: np.ndarray) -> np.ndarray | None:
         result = seg_model.predict(image, imgsz=seg_imgsz, conf=conf, device=device, verbose=False)[0]
-        if result.masks is None or len(result.masks) == 0:
-            return None
-        return result.masks.xy[int(result.boxes.conf.argmax())]
+        return best_polygon(result)
 
     def detect(crop: np.ndarray) -> list[Digit]:
         result = digit_model.predict(crop, imgsz=digit_imgsz, conf=conf, device=device, verbose=False)[0]

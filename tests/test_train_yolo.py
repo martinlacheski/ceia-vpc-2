@@ -93,3 +93,14 @@ def test_train_uses_yolo_class_for_yolo_weights(monkeypatch, tmp_path):
     calls = fake_training(monkeypatch, tmp_path)
     load_module().train("detect", "yolov8n.pt", "d.yaml", "digits", 1, 416, 8, 5, 42, fliplr=0.0)
     assert calls["model_class"] == "FakeYOLO"
+
+
+def test_cli_accepts_oriented_box_task(monkeypatch, tmp_path):
+    module = load_module()
+    calls = {}
+    monkeypatch.setattr(module, "train", lambda task, *args: calls.setdefault("task", task) and tmp_path)
+    monkeypatch.setattr(module, "collect_artifacts", lambda *args: None)
+    monkeypatch.setattr("sys.argv", ["train_yolo.py", "--task", "obb", "--model", "yolov8n-obb.pt",
+                                     "--data", "d.yaml", "--name", "visor_obb"])
+    module.main()
+    assert calls["task"] == "obb"

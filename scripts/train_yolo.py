@@ -8,6 +8,9 @@ en Google Colab (GPU NVIDIA) o en CPU. Al terminar:
 Uso (para retomar una corrida interrumpida: --task segment --name <nombre> --resume):
   python scripts/train_yolo.py --task segment --model yolov8n-seg.pt \
       --data data/processed/toloka_seg/data.yaml --name toloka_yolov8n_seg
+
+Tareas: segment (visor por máscara), detect (dígitos) y obb (visor por caja orientada,
+con el dataset que arma scripts/prepare_obb.py).
 """
 
 import argparse
@@ -79,7 +82,7 @@ def resume(task: str, name: str) -> Path:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--task", choices=["segment", "detect"], required=True)
+    parser.add_argument("--task", choices=["segment", "detect", "obb"], required=True)
     parser.add_argument("--name", required=True, help="nombre de la corrida y del peso final")
     parser.add_argument("--resume", action="store_true",
                         help="retoma la corrida --name interrumpida (no requiere --model ni --data)")

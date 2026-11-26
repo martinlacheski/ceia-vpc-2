@@ -199,3 +199,30 @@ def test_bbox_crop_keeps_the_display_tilted_inside_its_axis_aligned_box():
     x0, y0 = corners.min(axis=0)
     x1, y1 = corners.max(axis=0)
     assert abs(w - (x1 - x0) * 1.1) <= 3  # la caja con el mismo margen relativo (CROP_PAD)
+
+
+def test_best_polygon_takes_the_most_confident_segmentation_mask():
+    from types import SimpleNamespace
+    from meter_reader.pipeline import best_polygon
+    low, high = np.zeros((5, 2)), np.ones((6, 2))
+    result = SimpleNamespace(obb=None, masks=SimpleNamespace(xy=[low, high]),
+                             boxes=SimpleNamespace(conf=np.array([0.3, 0.8])))
+    assert np.array_equal(best_polygon(result), high)
+
+
+def test_best_polygon_takes_the_corners_of_the_most_confident_oriented_box():
+    # Un modelo OBB devuelve las 4 esquinas del rectángulo rotado: son el polígono del visor.
+    from types import SimpleNamespace
+    from meter_reader.pipeline import best_polygon
+    corners = np.array([[[0, 0], [10, 0], [10, 2], [0, 2]], [[5, 5], [25, 5], [25, 9], [5, 9]]], dtype=float)
+    result = SimpleNamespace(obb=SimpleNamespace(xyxyxyxy=corners, conf=np.array([0.4, 0.9])),
+                             masks=None, boxes=None)
+    assert np.array_equal(best_polygon(result), corners[1])
+
+
+def test_best_polygon_is_none_without_detections():
+    from types import SimpleNamespace
+    from meter_reader.pipeline import best_polygon
+    assert best_polygon(SimpleNamespace(obb=None, masks=None, boxes=None)) is None
+    empty_obb = SimpleNamespace(xyxyxyxy=np.zeros((0, 4, 2)), conf=np.zeros(0))
+    assert best_polygon(SimpleNamespace(obb=empty_obb, masks=None, boxes=None)) is None
