@@ -46,6 +46,7 @@ Dataset: recortes del visor rectificado de water-meter-dataset (`scripts/prepare
 | D6 | D1 + más aumentaciones de color y geometría (`hsv_h` 0,02, `hsv_s` 0,7, `hsv_v` 0,5, `degrees` 5, `perspective` 0,0005) | `digits_yolov8n_aug` | 0,985 / 0,682 | 0,961 / 0,962 | Hecho (Kaggle, T4; paró en la época 96, mejor la 76) |
 | D7 | RT-DETR-L (transformer), 416 px, batch 16, mismo protocolo que D1 | `digits_rtdetr_l` | 0,974 / 0,571 | 0,950 / 0,949 | Hecho (Kaggle, T4; paró en la época 57, mejor la 37) |
 | D8 | RT-DETR-L con su receta propia (AdamW, `lr0` 1e-4, `weight_decay` 1e-4, sin warmup de bias), paciencia 30 | `digits_rtdetr_l_adamw` | 0,968 / 0,587 | 0,957 / 0,951 | Hecho (Kaggle, T4; paró en la época 77, mejor la 47) |
+| D9 | YOLO26n, mismos hiperparámetros que D1 | `digits_yolo26n` | 0,982 / 0,688 | 0,966 / 0,951 | Hecho (local, RTX 4070 Laptop; paró en la época 79, mejor la 59) |
 
 El mAP50-95 por dígito va de 0,672 (`1` y `4`) a 0,707 (`5`): no hay un dígito claramente más difícil.
 
@@ -62,12 +63,17 @@ El mAP50-95 por dígito va de 0,672 (`1` y `4`) a 0,707 (`5`): no hay un dígito
 | D5 YOLOv8s, 640 | 0,707 | 0,680 | 103 | 235 ms | 22,5 MB |
 | D7 RT-DETR-L, 416 | 0,576 | 0,571 | 301 | 480 ms | 66,2 MB |
 | D8 RT-DETR-L + AdamW, 416 | 0,608 | 0,587 | 243 | 465 ms | 66,2 MB |
+| D9 YOLO26n, 416 | 0,712 | 0,688 | 26 * | 7,2 ms * | 5,4 MB |
+
+(*) D9 se entrenó y se midió en otra máquina (RTX 4070 Laptop y su CPU), así que su tiempo por época y su latencia no se comparan con las demás filas. En esa misma CPU, YOLOv8n (D1) tarda 8,3 ms por recorte (mediana de 5 mediciones de 30 recortes del test).
 
 Ninguna variante supera a D1 por más de 0,01 de mAP50-95 en validación (la regla fijada de antemano para pasar a evaluar en CEML): D3–D6 quedan entre 0,705 y 0,709, dentro del ruido entre corridas. Hay un techo común, probablemente por el ruido de las etiquetas más que por la capacidad. Como más tamaño y más resolución solo agregan latencia (hasta 5–6 veces) y peso, se mantiene YOLOv8n. Las latencias de D3–D6 se midieron en la CPU de Kaggle; la de D1 no se midió allí, por lo que no es comparable con las de las otras filas.
 
 **D7, RT-DETR-L**: queda 0,13 por debajo de D1 en validación (0,576 contra 0,709). Detecta casi igual (mAP50 de test 0,974 contra 0,983), pero ajusta peor las cajas, que es lo que mide el mAP50-95 en los umbrales altos. Además es 12 veces más lento en CPU que YOLOv8n con aumentaciones (480 ms contra 40 ms) y pesa 10 veces más. Se entrenó con la receta de Ultralytics de D1 (`optimizer=auto`, que Ultralytics resuelve como MuSGD con `lr0` 0,01; paró por paciencia en la época 57) y no con la receta propia de RT-DETR (AdamW con tasa más baja y más épocas), por lo que no era su mejor resultado posible. Esa receta además dejó el warmup de bias en 0,1 (pensado para SGD), y la tasa llegó a 0,02 en la época 2.
 
 **D8, RT-DETR-L con su receta propia**: para que la comparación fuera justa con el transformer se repitió D7 con la optimización del RT-DETR original (AdamW, `lr0` 1e-4, `weight_decay` 1e-4, sin warmup de bias) y paciencia 30. Mejora 0,03 sobre D7 en validación (0,608 contra 0,576) y en test (0,587 contra 0,571), pero sigue 0,10 por debajo de D1 (0,709), con la misma latencia en CPU (465 ms, unas 12 veces la de YOLOv8n) y el mismo peso. La brecha no se explicaba por la receta: con estos datos el transformer ajusta peor las cajas de los dígitos que la CNN chica, y su costo de inferencia lo descarta igual para el celular. Queda sin mejorar la tasa diferenciada del backbone (1e-5 en el original), que Ultralytics no expone.
+
+**D9, YOLO26n**: la versión más reciente de Ultralytics (enero de 2026), con inferencia sin NMS y menos parámetros que YOLOv8n (2,4 M contra 3,0 M en el modelo final). Con el mismo protocolo que D1 alcanza 0,712 de mAP50-95 en validación, contra 0,709 de D1: no supera la regla de +0,01, así que no se evalúa en CEML y se mantiene YOLOv8n. En el test público empatan (0,688 contra 0,687). Queda en el mismo techo que D3–D6, lo que refuerza que el límite está en los datos y no en la arquitectura. Es algo más liviano (5,4 MB contra 6,5 MB) y, en la misma CPU, alrededor de un 13 % más rápido (mediana de 7,2 contra 8,3 ms por recorte en 5 mediciones); sería el candidato si la latencia pasara a ser la restricción, por ejemplo al llevar el detector al celular.
 
 Primera prueba del pipeline completo sobre 12 fotos CEML al azar (inspección visual, sin lecturas de referencia todavía): los visores nítidos se leen bien salvo los rodillos rojos a mitad de giro; un visor invertido se resolvió con la elección de orientación; las fotos borrosas o empañadas fallan, pero con confianza mínima baja (0,25–0,51 frente a 0,69–0,85), lo que permite marcarlas para revisión manual.
 
