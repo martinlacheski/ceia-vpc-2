@@ -1,0 +1,24 @@
+{
+  "test": {
+    "map50": 0.9816,
+    "map50_95": 0.688,
+    "precision": 0.9661,
+    "recall": 0.9512
+  },
+  "map50_95_por_clase": {
+    "0": 0.7096,
+    "1": 0.6821,
+    "2": 0.6905,
+    "3": 0.6851,
+    "4": 0.6727,
+    "5": 0.7062,
+    "6": 0.694,
+    "7": 0.6999,
+    "8": 0.6789,
+    "9": 0.6607
+  },
+  "imgsz": 416,
+  "latencia_cpu_ms": 7.2,
+  "pesos_mb": 5.4,
+  "latencia_cpu_nota": "Mediana de 5 mediciones de 30 recortes del test en la CPU local (no la de Kaggle); en la misma CPU, digits_yolov8n: 8,3 ms"
+}
